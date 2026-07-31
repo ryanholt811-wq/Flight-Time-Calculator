@@ -153,13 +153,29 @@
     </div>
   </section>
 
-  <!-- Aircraft profile toggle -->
+  <!-- Aircraft profile toggle + wind correction -->
   <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
       <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Flight Profile — Performance Ruleset</h2>
-      <span class="text-[10px] text-slate-600 font-mono2 hidden sm:inline">representative category cruise speeds</span>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="windToggle" class="sr-only peer">
+          <span class="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-cyan-500 relative transition shrink-0">
+            <span class="absolute left-0.5 top-0.5 w-4 h-4 bg-slate-200 rounded-full transition peer-checked:translate-x-4"></span>
+          </span>
+          <span class="text-xs text-slate-400">Wind Correction</span>
+        </label>
+        <div id="windStatusPill" class="hidden items-center gap-1.5 text-[10px] font-mono2 px-2.5 py-1 rounded-full border border-slate-700 bg-slate-900/60">
+          <span id="windStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+          <span id="windStatusText" class="text-slate-400">—</span>
+        </div>
+        <button type="button" id="windRefreshBtn" class="hidden text-slate-500 hover:text-cyan-300 transition" aria-label="Refresh wind data">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" id="profileButtons"></div>
+    <p class="text-[10px] text-slate-600 mt-2">representative category cruise speeds<span id="windCaption"></span></p>
   </section>
 
   <!-- Prompt / awaiting state -->
@@ -351,7 +367,7 @@
 <!-- ============ FOOTER ============ -->
 <footer class="border-t border-slate-800/80 mt-8">
   <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 text-[11px] leading-relaxed text-slate-600 space-y-1 font-mono2">
-    <p>⚠ PLANNING AID ONLY. Still-air, no-wind, no-terrain great-circle estimate. Not for actual flight navigation, dispatch, or FAR/AIM compliance.</p>
+    <p>⚠ PLANNING AID ONLY. Not for actual flight navigation, dispatch, or FAR/AIM compliance.</p>
     <p id="footerDataNote">Data: live pull attempted from a public-domain North America airport dataset; falls back to an embedded regional dataset if the feed is unreachable.</p>
   </div>
 </footer>
@@ -363,12 +379,13 @@
     <h3 class="font-orbitron text-sm tracking-wide text-cyan-300 mb-3">SYSTEM NOTES</h3>
     <ul class="text-sm text-slate-400 space-y-2.5 list-disc list-inside">
       <li><span class="text-slate-300">Data source:</span> the app attempts a live <code class="text-cyan-300">fetch()</code> against a public-domain, open-source North America airport dataset. If the request fails, times out, or is blocked by network policy, it seamlessly loads an embedded offline dataset covering major hubs and representative regional fields.</li>
-      <li><span class="text-slate-300">Significant-field filter:</span> records are limited to United States and Canada, then narrowed to fields carrying a genuine 4-letter ICAO identifier (K.../P... for the US, C... for Canada) — this includes every towered, reliever, and municipal/GA airport with a real designator, while excluding private ranch strips, orchard strips, and ag airfields that only carry a local FAA-style location ID. Roughly 2,900 US/CA fields pass this filter in live mode.</li>
+      <li><span class="text-slate-300">Significant-field filter:</span> records are limited to United States and Canada, then narrowed to fields carrying a genuine 4-letter ICAO identifier (K.../P... for the US, C... for Canada) — this includes every towered, reliever, and municipal/GA airport with a real designator, while excluding private ranch strips, orchard strips, and ag airfields that only carry a local FAA-style location ID.</li>
       <li><span class="text-slate-300">Runway data:</span> published longest-runway figures are applied where known; any field without a confirmed value uses a conservative 5,000 ft baseline estimate.</li>
-      <li><span class="text-slate-300">Fleet speeds:</span> Single/Twin Piston, Midsize Jet, and Heavy Jet use a representative cruise TAS for aircraft typically flown in that class — treat those as planning-order-of-magnitude figures. <strong class="text-amber-300">Light Jet is different:</strong> its speed (389 kt), all-in rate ($4,472.66/hr), and fuel burn (234 gal/hr) are derived from the operator's own YTD logged flight data (nm ÷ hours, total expense ÷ hours, fuel gallons ÷ hours) rather than an assumed constant.</li>
-      <li><span class="text-slate-300">Runway minimums:</span> Light/Midsize/Heavy Jet categories each carry their own reference minimum runway length (4,000 / 5,000 / 6,000 ft) used to trigger the runway advisory. These are representative, not type-specific balanced-field-length data.</li>
-      <li><span class="text-slate-300">Multi-stop &amp; round trip:</span> each leg — including mirrored return legs — is computed independently for distance, course, and ETE, then summed into trip totals. Taxi-out/taxi-in allowances in the cost calculator apply <strong class="text-slate-300">per leg</strong> (every stop involves its own takeoff and landing), not once for the whole itinerary — this is what makes total engine time and cost roll up correctly across a multi-stop trip. The runway advisory and shortest-runway stat check every stop the itinerary actually lands at.</li>
-      <li><span class="text-slate-300">Route map:</span> renders the true great-circle path over a live dark basemap (CARTO). Requires an internet connection to load map tiles; if unavailable, a text notice appears while the leg breakdown continues to work fully offline.</li>
+      <li><span class="text-slate-300">Fleet speeds:</span> Single/Twin Piston, Midsize Jet, and Heavy Jet use a representative cruise TAS for aircraft typically flown in that class. <strong class="text-amber-300">Light Jet is different:</strong> its speed (389 kt), all-in rate ($4,472.66/hr), and fuel burn (234 gal/hr) are derived from the operator's own YTD logged flight data rather than an assumed constant.</li>
+      <li><span class="text-slate-300">Runway minimums:</span> Light/Midsize/Heavy Jet categories each carry their own reference minimum runway length (4,000 / 5,000 / 6,000 ft) used to trigger the runway advisory.</li>
+      <li><span class="text-slate-300">Wind correction:</span> when enabled, each leg samples forecast wind speed/direction at a representative cruise pressure-altitude for the <em>active</em> aircraft's category (e.g. 200 hPa / ~FL390 for Light Jet, 700 hPa / ~10,000 ft for Single Piston) at the leg's midpoint, then applies the standard wind-triangle correction (headwind/tailwind component + crosswind-driven correction angle) to true airspeed. If the live forecast is unreachable, a labeled climatological average (prevailing westerly flow aloft) is used instead so the estimate degrades gracefully rather than failing outright. This is a single-sample-per-leg simplification, not a full route-integrated wind model — treat the result as directionally correct (a genuine tailwind/headwind swap between reversed routes, matching real jet-stream behavior), not accurate to the knot.</li>
+      <li><span class="text-slate-300">Multi-stop &amp; round trip:</span> each leg — including mirrored return legs — is computed independently, then summed into trip totals. Taxi-out/taxi-in allowances in the cost calculator apply <strong class="text-slate-300">per leg</strong>, not once for the whole itinerary. The runway advisory and shortest-runway stat check every stop the itinerary actually lands at.</li>
+      <li><span class="text-slate-300">Route map:</span> renders the true great-circle path over a live dark basemap (CARTO). Requires an internet connection to load map tiles.</li>
       <li><span class="text-slate-300">Cost &amp; fuel estimator:</span> entirely user-supplied figures. The fuel-burn field is seeded with a rough per-category starting point only — replace it with your aircraft's actual POH/operating data for a trustworthy trip cost.</li>
     </ul>
   </div>
@@ -389,6 +406,16 @@
   var LIVE_DATA_URL = 'https://raw.githubusercontent.com/mwgg/airports/master/airports.json';
   var COST_STORAGE_KEY = 'aeronavfpx_cost_v1';
   var MAX_WAYPOINTS = 8;
+
+  var WIND_API_URL = 'https://api.open-meteo.com/v1/forecast';
+  var WIND_FETCH_TIMEOUT_MS = 8000;
+  // Representative cruise pressure-altitude per category, used to sample forecast winds aloft.
+  var WIND_PRESSURE_BY_PROFILE = { single: '700hPa', twin: '500hPa', light: '200hPa', mid: '200hPa', heavy: '150hPa' };
+  var WIND_UNIQUE_LEVELS = ['700hPa', '500hPa', '200hPa', '150hPa'];
+  // Climatological fallback: prevailing westerly flow aloft over North America, roughly scaled
+  // by altitude (jet-stream-region winds are far stronger at jet cruise levels than down low).
+  var CLIMATOLOGICAL_WIND_DIR = 270;
+  var CLIMATOLOGICAL_SPEED_BY_LEVEL = { '700hPa': 15, '500hPa': 25, '200hPa': 58, '150hPa': 65 };
 
   var AIRCRAFT_PROFILES = {
     single: { key: 'single', label: 'Single Piston', sub: 'e.g. C172 / PA-28 class',        speed: 140, accent: 'emerald', isJet: false, minRunway: null, fuelDefault: 12,  rateDefault: null, speedIncludesGround: false },
@@ -453,6 +480,7 @@
     {icao:'KCMH',iata:'CMH',name:'John Glenn Columbus International Airport',city:'Columbus',state:'OH',country:'US',lat:39.9980,lon:-82.8919},
     {icao:'KOMA',iata:'OMA',name:'Eppley Airfield',city:'Omaha',state:'NE',country:'US',lat:41.3032,lon:-95.8941},
     {icao:'KMKE',iata:'MKE',name:'Milwaukee Mitchell International Airport',city:'Milwaukee',state:'WI',country:'US',lat:42.9472,lon:-87.8966},
+    {icao:'KDSM',iata:'DSM',name:'Des Moines International Airport',city:'Des Moines',state:'IA',country:'US',lat:41.5340,lon:-93.6631},
 
     {icao:'KDFW',iata:'DFW',name:'Dallas/Fort Worth International Airport',city:'Dallas',state:'TX',country:'US',lat:32.8998,lon:-97.0403},
     {icao:'KIAH',iata:'IAH',name:'George Bush Intercontinental Airport',city:'Houston',state:'TX',country:'US',lat:29.9902,lon:-95.3368},
@@ -482,6 +510,7 @@
     {icao:'KCOS',iata:'COS',name:'Colorado Springs Airport',city:'Colorado Springs',state:'CO',country:'US',lat:38.8058,lon:-104.7008},
     {icao:'PANC',iata:'ANC',name:'Ted Stevens Anchorage International Airport',city:'Anchorage',state:'AK',country:'US',lat:61.1743,lon:-149.9963},
     {icao:'KRNO',iata:'RNO',name:'Reno-Tahoe International Airport',city:'Reno',state:'NV',country:'US',lat:39.4991,lon:-119.7681},
+    {icao:'KFCA',iata:'FCA',name:'Glacier Park International Airport',city:'Kalispell',state:'MT',country:'US',lat:48.3105,lon:-114.2560},
 
     {icao:'KPVD',iata:'PVD',name:'T.F. Green International Airport',city:'Providence',state:'RI',country:'US',lat:41.7240,lon:-71.4283},
     {icao:'KALB',iata:'ALB',name:'Albany International Airport',city:'Albany',state:'NY',country:'US',lat:42.7483,lon:-73.8017},
@@ -543,7 +572,7 @@
   var waypoints = [ { airport: null }, { airport: null } ]; // index 0 = origin, last = destination
   var roundTrip = false;
   var activeProfile = 'light';
-  var lastItinerary = null; // cached computation for cheap profile-switch re-render
+  var lastItinerary = null;
   var dropdownItems = {};   // keyed by waypoint index
   var highlightIndex = {};  // keyed by waypoint index
 
@@ -552,6 +581,12 @@
   var waypointMarkers = {}; // icao -> L.circleMarker
 
   var costState = { mode: 'allin', fixedRate: 0, fuelBurn: 0, fuelUnit: 'gal', fuelPrice: 0, taxiOut: 10, taxiIn: 5 };
+
+  var windEnabled = false;
+  var windSource = 'none';   // 'none' | 'loading' | 'live' | 'climatological'
+  var windDataKey = null;    // itinerary key that windPerLeg currently corresponds to
+  var windPerLeg = null;     // array parallel to lastItinerary.legs: { '700hPa':{speed,dir}, ... }
+  var windRequestToken = 0;
 
   /* =========================================================
      DOM REFS
@@ -568,12 +603,13 @@
      'fuelUnitToggle','fuelPriceLabel','useTypicalBurn','costEngineTime','costEngineNote','costFuelTotal',
      'costFuelTotalUnit','costFuelCost','costNonFuel','costTotal','costTotalNote',
      'costModeToggle','costFixedRateLabel','costFuelCostLabel','costFuelCostNote',
-     'costNonFuelLabel','costNonFuelNote','taxiHint'
+     'costNonFuelLabel','costNonFuelNote','taxiHint',
+     'windToggle','windStatusPill','windStatusDot','windStatusText','windRefreshBtn','windCaption'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
   /* =========================================================
-     DATA LOADING
+     DATA LOADING (airports)
   ========================================================= */
   function setStatus(mode) {
     var dotClasses = 'w-2 h-2 rounded-full ';
@@ -609,12 +645,6 @@
     var nameLC = (a.name || '').toLowerCase();
     if (nameLC.indexOf('heliport') !== -1) return false;
     if (nameLC.indexOf('closed') !== -1) return false;
-    // A genuine ICAO identifier is always 4 alphabetic characters (K.../P... for
-    // the US, C... for Canada). Small private strips, ranches, and ag airfields
-    // in this dataset are instead keyed by FAA-style location identifiers that
-    // mix digits (e.g. "00AK", "6AK5", "AK12") — this reliably separates real
-    // public-use airports from those, without needing a separate "type" field
-    // the source data doesn't provide.
     var icao = String(a.icao).trim();
     var isTrueIcao = icao.length === 4 && /^[A-Za-z]{4}$/.test(icao);
     var isOverride = Object.prototype.hasOwnProperty.call(RUNWAY_OVERRIDES, a.icao);
@@ -639,9 +669,7 @@
     setStatus('loading');
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timeoutId = null;
-    if (controller) {
-      timeoutId = setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT_MS);
-    }
+    if (controller) { timeoutId = setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT_MS); }
     var fetchOpts = controller ? { signal: controller.signal } : {};
 
     fetch(LIVE_DATA_URL, fetchOpts)
@@ -720,6 +748,11 @@
     return points;
   }
 
+  function legMidpoint(leg) {
+    var pts = greatCirclePoints(leg.from.lat, leg.from.lon, leg.to.lat, leg.to.lon, 2);
+    return pts[1];
+  }
+
   function formatETE(hoursDecimal) {
     var totalMin = Math.round(hoursDecimal * 60);
     var h = Math.floor(totalMin / 60);
@@ -729,6 +762,149 @@
 
   function fmtNum(n, decimals) {
     return n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  }
+
+  /* =========================================================
+     WIND: fetch, parse, wind-triangle math
+  ========================================================= */
+  function buildItineraryKey(legs) {
+    return legs.map(function (l) { return l.from.icao + '>' + l.to.icao; }).join('|');
+  }
+
+  function climatologicalWindForLeg() {
+    var perLevel = {};
+    WIND_UNIQUE_LEVELS.forEach(function (lvl) {
+      perLevel[lvl] = { speed: CLIMATOLOGICAL_SPEED_BY_LEVEL[lvl], dir: CLIMATOLOGICAL_WIND_DIR };
+    });
+    return perLevel;
+  }
+
+  function parseWindResponse(data, legCount) {
+    try {
+      var entries = Array.isArray(data) ? data : [data];
+      if (entries.length !== legCount) return null;
+      var result = [];
+      for (var i = 0; i < entries.length; i++) {
+        var hourly = entries[i] && entries[i].hourly;
+        if (!hourly) return null;
+        var perLevel = {};
+        var anyValid = false;
+        for (var j = 0; j < WIND_UNIQUE_LEVELS.length; j++) {
+          var lvl = WIND_UNIQUE_LEVELS[j];
+          var spdArr = hourly['windspeed_' + lvl];
+          var dirArr = hourly['winddirection_' + lvl];
+          if (Array.isArray(spdArr) && Array.isArray(dirArr) && spdArr.length && dirArr.length &&
+              isFinite(spdArr[0]) && isFinite(dirArr[0])) {
+            perLevel[lvl] = { speed: spdArr[0], dir: dirArr[0] };
+            anyValid = true;
+          }
+        }
+        if (!anyValid) return null;
+        result.push(perLevel);
+      }
+      return result;
+    } catch (e) { return null; }
+  }
+
+  function fetchWindForItinerary() {
+    if (!lastItinerary || !lastItinerary.legs.length) return;
+    var legs = lastItinerary.legs;
+    var key = buildItineraryKey(legs);
+    var token = ++windRequestToken;
+
+    windSource = 'loading';
+    renderWindStatus();
+
+    var midpoints = legs.map(legMidpoint);
+    var lats = midpoints.map(function (p) { return p[0].toFixed(3); }).join(',');
+    var lons = midpoints.map(function (p) { return p[1].toFixed(3); }).join(',');
+    var hourlyVars = [];
+    WIND_UNIQUE_LEVELS.forEach(function (lvl) { hourlyVars.push('windspeed_' + lvl, 'winddirection_' + lvl); });
+    var url = WIND_API_URL + '?latitude=' + lats + '&longitude=' + lons +
+      '&hourly=' + hourlyVars.join(',') + '&forecast_days=1&windspeed_unit=kn&timezone=UTC';
+
+    var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, WIND_FETCH_TIMEOUT_MS) : null;
+
+    fetch(url, controller ? { signal: controller.signal } : {})
+      .then(function (res) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        if (token !== windRequestToken) return; // stale — itinerary changed since this request went out
+        var parsed = parseWindResponse(data, legs.length);
+        if (!parsed) throw new Error('Unexpected wind API response shape');
+        windPerLeg = parsed;
+        windDataKey = key;
+        windSource = 'live';
+        renderResults();
+      })
+      .catch(function (err) {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (token !== windRequestToken) return;
+        console.warn('[AERONAV·FPX] Live wind fetch failed, using climatological average:', err && err.message ? err.message : err);
+        windPerLeg = legs.map(climatologicalWindForLeg);
+        windDataKey = key;
+        windSource = 'climatological';
+        renderResults();
+      });
+  }
+
+  // Standard wind-triangle solution: tailwind/headwind component adds directly to
+  // groundspeed; crosswind component requires a wind-correction-angle heading offset,
+  // which itself costs a small amount of the along-track speed (TAS*cos(WCA)).
+  function windAdjustedForLeg(leg, windEntry, profileKey) {
+    var profile = AIRCRAFT_PROFILES[profileKey];
+    var lvl = WIND_PRESSURE_BY_PROFILE[profileKey];
+    var w = windEntry ? windEntry[lvl] : null;
+    if (!w) return null;
+    var phi = toRad((((w.dir + 180) - leg.course) % 360 + 360) % 360);
+    var tailComp = w.speed * Math.cos(phi);
+    var crossComp = w.speed * Math.sin(phi);
+    var ratio = Math.max(-1, Math.min(1, crossComp / profile.speed));
+    var wca = Math.asin(ratio);
+    var gs = profile.speed * Math.cos(wca) + tailComp;
+    gs = Math.max(gs, profile.speed * 0.15); // safety floor against pathological extreme-headwind inputs
+    return { groundSpeed: gs, windComponent: tailComp, eteHrs: leg.distNM / gs };
+  }
+
+  function windDataMatchesCurrentItinerary() {
+    return !!(windPerLeg && lastItinerary && windDataKey === buildItineraryKey(lastItinerary.legs));
+  }
+
+  function legEffectiveEteHrs(legIndex, profileKey) {
+    var leg = lastItinerary.legs[legIndex];
+    if (windEnabled && windDataMatchesCurrentItinerary()) {
+      var adj = windAdjustedForLeg(leg, windPerLeg[legIndex], profileKey);
+      if (adj) return adj.eteHrs;
+    }
+    return leg.eteByProfile[profileKey];
+  }
+
+  function totalEffectiveEteHrs(profileKey) {
+    var total = 0;
+    for (var i = 0; i < lastItinerary.legs.length; i++) { total += legEffectiveEteHrs(i, profileKey); }
+    return total;
+  }
+
+  function renderWindStatus() {
+    if (!windEnabled) {
+      el.windStatusPill.classList.add('hidden'); el.windStatusPill.classList.remove('flex');
+      el.windRefreshBtn.classList.add('hidden');
+      el.windCaption.textContent = '';
+      return;
+    }
+    el.windStatusPill.classList.remove('hidden'); el.windStatusPill.classList.add('flex');
+    el.windRefreshBtn.classList.remove('hidden');
+    var dotColor = 'bg-slate-600', label = '—', captionSuffix = '';
+    if (windSource === 'loading') { dotColor = 'bg-amber-400 animate-pulse'; label = 'FETCHING WIND…'; }
+    else if (windSource === 'live') { dotColor = 'bg-emerald-400'; label = 'LIVE FORECAST WIND'; captionSuffix = ' · wind-adjusted (live forecast)'; }
+    else if (windSource === 'climatological') { dotColor = 'bg-amber-500'; label = 'CLIMATOLOGICAL AVG (est.)'; captionSuffix = ' · wind-adjusted (climatological estimate)'; }
+    el.windStatusDot.className = 'w-1.5 h-1.5 rounded-full ' + dotColor;
+    el.windStatusText.textContent = label;
+    el.windCaption.textContent = captionSuffix;
   }
 
   /* =========================================================
@@ -1041,6 +1217,11 @@
       alternates: alternates
     };
     renderResults();
+
+    if (windEnabled) {
+      var key = buildItineraryKey(legs);
+      if (windDataKey !== key) fetchWindForItinerary();
+    }
   }
 
   function findAlternates(dest, excludeIcaos, count) {
@@ -1081,15 +1262,17 @@
       el.statRunwayIcao.textContent = 'on route';
     }
 
-    var eteHrs = it.totalEteByProfile[activeProfile];
+    var eteHrs = totalEffectiveEteHrs(activeProfile);
     el.statETE.textContent = formatETE(eteHrs);
-    el.statETEProfile.textContent = AIRCRAFT_PROFILES[activeProfile].label + ' · ' + AIRCRAFT_PROFILES[activeProfile].speed + ' KTAS · total trip';
+    el.statETEProfile.textContent = AIRCRAFT_PROFILES[activeProfile].label + ' · ' + AIRCRAFT_PROFILES[activeProfile].speed + ' KTAS' +
+      (windEnabled && windDataMatchesCurrentItinerary() ? ' · wind-adj' : ' · total trip');
 
     renderSafetyBanner();
     renderLegBreakdown();
     renderProfileGrid();
     renderAlternates();
     renderRouteMap();
+    renderWindStatus();
     computeCostEstimate();
   }
 
@@ -1117,13 +1300,23 @@
 
   function renderLegBreakdown() {
     var profile = AIRCRAFT_PROFILES[activeProfile];
-    var html = lastItinerary.legs.map(function (leg) {
-      var eteHrs = leg.eteByProfile[activeProfile];
+    var useWind = windEnabled && windDataMatchesCurrentItinerary();
+    var html = lastItinerary.legs.map(function (leg, i) {
+      var eteHrs = legEffectiveEteHrs(i, activeProfile);
       var dirBadge = leg.direction === 'return'
         ? '<span class="text-[9px] font-mono2 text-violet-400 uppercase tracking-widest">Return</span>'
         : '<span class="text-[9px] font-mono2 text-cyan-500 uppercase tracking-widest">Outbound</span>';
       var shortFlag = (profile.isJet && leg.to.runway < profile.minRunway)
         ? '<span class="text-[9px] font-mono2 text-amber-400 uppercase tracking-widest ml-2">Short RWY</span>' : '';
+      var windInfo = '';
+      if (useWind) {
+        var adj = windAdjustedForLeg(leg, windPerLeg[i], activeProfile);
+        if (adj) {
+          var comp = Math.round(adj.windComponent);
+          var compLabel = comp >= 0 ? ('+' + comp + 'kt TW') : (comp + 'kt HW');
+          windInfo = '<span class="text-[10px] font-mono2 ' + (comp >= 0 ? 'text-emerald-400' : 'text-red-400') + ' ml-2">' + compLabel + '</span>';
+        }
+      }
       return (
         '<div class="flex items-center gap-3 bg-slate-950/40 border border-slate-800 rounded-lg px-3 py-2.5">' +
           '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="shrink-0 text-slate-500" style="transform:rotate(' + leg.course + 'deg)">' +
@@ -1135,7 +1328,7 @@
           '</div>' +
           '<div class="text-right shrink-0">' +
             '<p class="text-xs font-mono2 text-slate-300">' + fmtNum(leg.distNM, 0) + ' nm · ' + Math.round(leg.course) + '° · ' + formatETE(eteHrs) + '</p>' +
-            '<div>' + dirBadge + shortFlag + '</div>' +
+            '<div>' + dirBadge + shortFlag + windInfo + '</div>' +
           '</div>' +
         '</div>'
       );
@@ -1145,11 +1338,10 @@
   }
 
   function renderProfileGrid() {
-    var it = lastItinerary;
     var html = PROFILE_ORDER.map(function (key) {
       var p = AIRCRAFT_PROFILES[key];
       var active = key === activeProfile;
-      var eteHrs = it.totalEteByProfile[key];
+      var eteHrs = totalEffectiveEteHrs(key);
       var ring = active ? 'border-cyan-400/70 bg-cyan-500/5' : 'border-slate-800';
       return (
         '<div class="result-card border ' + ring + ' rounded-xl p-3.5">' +
@@ -1432,11 +1624,8 @@
     if (!lastItinerary) return;
     readCostInputs();
 
-    var flightHrs = lastItinerary.totalEteByProfile[activeProfile];
+    var flightHrs = totalEffectiveEteHrs(activeProfile);
     var legCount = lastItinerary.legs.length;
-    // Every leg has its own takeoff and landing, so taxi allowance applies PER LEG —
-    // this is what makes engine time (and everything downstream of it) roll up
-    // correctly across a multi-stop / round-trip itinerary.
     var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
     var engineHrs = flightHrs + taxiHrsTotal;
 
@@ -1509,7 +1698,7 @@
   }
 
   /* =========================================================
-     EVENT WIRING — route builder, profiles, info modal
+     EVENT WIRING — route builder, wind, profiles, info modal
   ========================================================= */
   function setupRouteBuilderControls() {
     el.addStopBtn.addEventListener('click', addStop);
@@ -1517,6 +1706,27 @@
     el.roundTripToggle.addEventListener('change', function () {
       roundTrip = el.roundTripToggle.checked;
       validateAndCompute();
+    });
+  }
+
+  function setupWindControls() {
+    el.windToggle.addEventListener('change', function () {
+      windEnabled = el.windToggle.checked;
+      if (windEnabled && lastItinerary) {
+        var key = buildItineraryKey(lastItinerary.legs);
+        if (windDataKey !== key) {
+          fetchWindForItinerary();
+        } else {
+          renderWindStatus();
+          renderResults();
+        }
+      } else {
+        renderWindStatus();
+        if (lastItinerary) renderResults();
+      }
+    });
+    el.windRefreshBtn.addEventListener('click', function () {
+      if (lastItinerary) fetchWindForItinerary();
     });
   }
 
@@ -1556,6 +1766,7 @@
     buildProfileButtons();
     setupProfileClicks();
     setupRouteBuilderControls();
+    setupWindControls();
     setupInfoModal();
     setupCostCalculator();
     loadAirportData();
