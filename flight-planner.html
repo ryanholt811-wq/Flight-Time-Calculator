@@ -8,6 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#060a12">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AERONAV FPX">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script>
   tailwind.config = {
     theme: {
@@ -63,6 +71,29 @@
 
   input:focus { outline: none; }
   .search-input:focus { box-shadow: 0 0 0 2px rgba(34,211,238,0.35); }
+
+  /* Leaflet dark-theme overrides */
+  .leaflet-container { background: #0b1120; font-family: 'JetBrains Mono', monospace; }
+  .leaflet-control-zoom a {
+    background: rgba(15,23,42,0.9) !important;
+    color: #94a3b8 !important;
+    border-color: rgba(51,65,85,0.8) !important;
+  }
+  .leaflet-control-zoom a:hover { background: rgba(30,41,59,0.95) !important; color: #e2e8f0 !important; }
+  .leaflet-bar { border-color: rgba(51,65,85,0.8) !important; }
+  .leaflet-control-attribution {
+    background: rgba(6,10,18,0.75) !important;
+    color: #64748b !important;
+    font-size: 9px !important;
+  }
+  .leaflet-control-attribution a { color: #94a3b8 !important; }
+  .leaflet-popup-content-wrapper {
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155;
+    border-radius: 10px !important;
+  }
+  .leaflet-popup-tip { background: #0f172a !important; }
 
   @media (prefers-reduced-motion: reduce) {
     .anim-in, .dropdown-anim, #courseArrow, .profile-btn, .result-card { animation: none !important; transition: none !important; }
@@ -140,8 +171,11 @@
 
   <!-- Aircraft profile toggle -->
   <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
-    <h2 class="text-[11px] uppercase tracking-widest text-slate-500 mb-3">Flight Profile — Performance Ruleset</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="profileButtons">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Flight Profile — Performance Ruleset</h2>
+      <span class="text-[10px] text-slate-600 font-mono2 hidden sm:inline">representative category cruise speeds</span>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" id="profileButtons">
       <!-- populated by JS -->
     </div>
   </section>
@@ -153,7 +187,7 @@
       <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
     </svg>
-    <p class="text-sm text-slate-500">Select an origin and destination airport to compute geodesic distance, ETE, and diversion alternates.</p>
+    <p class="text-sm text-slate-500">Select an origin and destination airport to compute geodesic distance, ETE, route map, and diversion alternates.</p>
   </div>
 
   <!-- ============ RESULTS ============ -->
@@ -168,7 +202,7 @@
       </div>
     </div>
 
-    <!-- Same-airport route notice removed via validation; primary readouts -->
+    <!-- Primary readouts -->
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
       <div class="result-card panel border border-slate-800 rounded-2xl p-4">
         <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Distance</p>
@@ -195,6 +229,23 @@
         <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Dest. Runway</p>
         <p id="statRunway" class="font-orbitron text-xl md:text-2xl text-slate-200">—</p>
         <p class="text-[11px] text-slate-500 font-mono2">longest published, ft</p>
+      </div>
+    </div>
+
+    <!-- Route Map -->
+    <div class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500">Route Map — Great-Circle Path</p>
+        <span class="text-[10px] font-mono2 text-slate-600">LIVE BASEMAP</span>
+      </div>
+      <div class="relative w-full h-72 md:h-96 rounded-xl overflow-hidden border border-slate-800">
+        <div id="routeMapContainer" class="w-full h-full"></div>
+        <div id="mapFallback" class="hidden absolute inset-0 grid place-items-center bg-slate-950/90 text-center px-6">
+          <div>
+            <p class="text-sm text-slate-400">Interactive map unavailable — no connection to the map tile service.</p>
+            <p class="text-xs text-slate-600 mt-1">The course indicator below still reflects the correct great-circle bearing.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -227,7 +278,89 @@
 
       <div class="md:col-span-2 panel border border-slate-800 rounded-2xl p-4">
         <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-3">Performance Comparison — All Fleet Categories</p>
-        <div id="profileGrid" class="grid sm:grid-cols-3 gap-3"></div>
+        <div id="profileGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+      </div>
+    </div>
+
+    <!-- Cost & Fuel Estimator -->
+    <div class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500">Cost &amp; Fuel Estimator</p>
+        <span class="text-[10px] font-mono2 text-slate-600">USER-SUPPLIED RATES</span>
+      </div>
+
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-[11px] text-slate-500">Rate Mode:</span>
+        <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden" id="costModeToggle">
+          <button type="button" data-mode="allin" class="cost-mode-btn px-2.5 py-1 text-[10px] font-mono2">ALL-IN $/HR</button>
+          <button type="button" data-mode="itemized" class="cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 border-l border-slate-700">ITEMIZED</button>
+        </div>
+        <span class="text-[10px] text-slate-600 hidden sm:inline">All-in = fuel, crew, insurance, hangar, landing fees, MSP, everything blended into one $/hr</span>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+        <div>
+          <label id="costFixedRateLabel" class="block text-[11px] text-slate-500 mb-1">All-In Rate ($/hr)</label>
+          <input id="costFixedRate" type="number" min="0" step="1" placeholder="e.g. 3200"
+            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Fuel Burn Rate</label>
+          <div class="flex gap-1.5">
+            <input id="costFuelBurn" type="number" min="0" step="0.1" placeholder="e.g. 28"
+              class="search-input flex-1 min-w-0 bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+            <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden shrink-0" id="fuelUnitToggle">
+              <button type="button" data-unit="gal" class="fuel-unit-btn px-2 py-1 text-[10px] font-mono2">GAL</button>
+              <button type="button" data-unit="lbs" class="fuel-unit-btn px-2 py-1 text-[10px] font-mono2 border-l border-slate-700">LBS</button>
+            </div>
+          </div>
+          <button type="button" id="useTypicalBurn" class="text-[10px] text-cyan-500 hover:text-cyan-300 mt-1 underline decoration-dotted text-left"></button>
+        </div>
+        <div>
+          <label id="fuelPriceLabel" class="block text-[11px] text-slate-500 mb-1">Fuel Price ($/gal)</label>
+          <input id="costFuelPrice" type="number" min="0" step="0.01" placeholder="e.g. 6.25"
+            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Taxi-Out (min)</label>
+          <input id="costTaxiOut" type="number" min="0" step="1" value="10"
+            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Taxi-In (min)</label>
+          <input id="costTaxiIn" type="number" min="0" step="1" value="5"
+            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <p id="taxiHint" class="hidden sm:col-span-2 lg:col-span-5 text-[10px] text-amber-500/80 -mt-1"></p>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Engine Run Time</p>
+          <p id="costEngineTime" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2">flight + taxi</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fuel Burned</p>
+          <p id="costFuelTotal" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2"><span id="costFuelTotalUnit">gal</span> total</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p id="costFuelCostLabel" class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fuel Cost</p>
+          <p id="costFuelCost" class="font-orbitron text-lg text-slate-100">—</p>
+          <p id="costFuelCostNote" class="text-[11px] text-slate-500 font-mono2">at entered price</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p id="costNonFuelLabel" class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Non-Fuel Cost</p>
+          <p id="costNonFuel" class="font-orbitron text-lg text-slate-100">—</p>
+          <p id="costNonFuelNote" class="text-[11px] text-slate-500 font-mono2">fixed rate × engine time</p>
+        </div>
+        <div class="result-card col-span-2 lg:col-span-1 panel border-2 border-emerald-500/50 rounded-xl p-3.5 relative overflow-hidden">
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none"></div>
+          <p class="text-[10px] uppercase tracking-widest text-emerald-500/80 mb-1 relative">Total Est. Trip Cost</p>
+          <p id="costTotal" class="font-orbitron text-lg text-emerald-300 relative">—</p>
+          <p id="costTotalNote" class="text-[11px] text-slate-500 font-mono2 relative">enter rates above</p>
+        </div>
       </div>
     </div>
 
@@ -253,19 +386,22 @@
 
 <!-- ============ INFO MODAL ============ -->
 <div id="infoModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm items-center justify-center p-4">
-  <div class="max-w-lg w-full bg-slate-900 border border-slate-700 rounded-2xl p-5 md:p-6 relative">
+  <div class="max-w-lg w-full bg-slate-900 border border-slate-700 rounded-2xl p-5 md:p-6 relative max-h-[85vh] overflow-y-auto">
     <button id="infoClose" class="absolute top-3 right-3 w-7 h-7 grid place-items-center rounded-full text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition">✕</button>
     <h3 class="font-orbitron text-sm tracking-wide text-cyan-300 mb-3">SYSTEM NOTES</h3>
     <ul class="text-sm text-slate-400 space-y-2.5 list-disc list-inside">
       <li><span class="text-slate-300">Data source:</span> the app attempts a live <code class="text-cyan-300">fetch()</code> against a public-domain, open-source North America airport dataset. If the request fails, times out, or is blocked by network policy, it seamlessly loads an embedded offline dataset covering major hubs and representative regional fields.</li>
-      <li><span class="text-slate-300">Significant-field filter:</span> records are limited to United States and Canada, then narrowed to fields carrying an active scheduled-service IATA code or a curated set of notable regional/GA fields — this removes closed strips, helipads, and private pads from the autocomplete pool.</li>
+      <li><span class="text-slate-300">Significant-field filter:</span> records are limited to United States and Canada, then narrowed to fields carrying a genuine 4-letter ICAO identifier (K.../P... for the US, C... for Canada) — this includes every towered, reliever, and municipal/GA airport with a real designator, while excluding private ranch strips, orchard strips, and ag airfields that only carry a local FAA-style location ID. Roughly 2,900 US/CA fields pass this filter in live mode.</li>
       <li><span class="text-slate-300">Runway data:</span> published longest-runway figures are applied where known; any field without a confirmed value uses a conservative 5,000 ft baseline estimate.</li>
-      <li><span class="text-slate-300">ETE model:</span> distance ÷ true airspeed, still air, no wind or routing correction. Treat as a planning-order-of-magnitude figure only.</li>
-      <li><span class="text-slate-300">Alternates:</span> computed live via a Haversine scan of the loaded dataset for the three nearest fields to the destination, excluding the origin and destination themselves.</li>
+      <li><span class="text-slate-300">Fleet speeds:</span> Single/Twin Piston, Midsize Jet, and Heavy Jet use a representative cruise TAS for aircraft typically flown in that class — treat those as planning-order-of-magnitude figures. <strong class="text-amber-300">Light Jet is different:</strong> its speed (389 kt), all-in rate ($4,472.66/hr), and fuel burn (234 gal/hr) are derived from the operator's own YTD logged flight data (nm ÷ hours, total expense ÷ hours, fuel gallons ÷ hours) rather than an assumed constant.</li>
+      <li><span class="text-slate-300">Runway minimums:</span> Light/Midsize/Heavy Jet categories each carry their own reference minimum runway length (4,000 / 5,000 / 6,000 ft) used to trigger the runway advisory. These are representative, not type-specific balanced-field-length data.</li>
+      <li><span class="text-slate-300">Route map:</span> renders the true great-circle path over a live dark basemap (CARTO). Requires an internet connection to load map tiles; if unavailable, a text notice appears while the course indicator continues to work fully offline.</li>
+      <li><span class="text-slate-300">Cost &amp; fuel estimator:</span> entirely user-supplied figures. The fuel-burn field is seeded with a rough per-category starting point only — replace it with your aircraft's actual POH/operating data for a trustworthy trip cost. Engine run time = selected profile's flight ETE + your taxi-out and taxi-in allowances.</li>
     </ul>
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 (function () {
   'use strict';
@@ -275,34 +411,36 @@
   ========================================================= */
   var EARTH_R_NM = 3440.065;   // nautical miles
   var EARTH_R_SM = 3958.8;     // statute miles
-  var MIN_JET_RUNWAY = 4000;   // ft
   var DEFAULT_RUNWAY = 5000;   // ft baseline when unknown
   var FETCH_TIMEOUT_MS = 9000;
   var LIVE_DATA_URL = 'https://raw.githubusercontent.com/mwgg/airports/master/airports.json';
+  var COST_STORAGE_KEY = 'aeronavfpx_cost_v1';
 
   var AIRCRAFT_PROFILES = {
-    single: { key: 'single', label: 'Single Piston', sub: 'e.g. C172 / PA-28 class', speed: 140, accent: 'emerald' },
-    twin:   { key: 'twin',   label: 'Twin Piston',   sub: 'e.g. BE58 / PA-34 class', speed: 210, accent: 'sky' },
-    jet:    { key: 'jet',    label: 'Light Jet',     sub: 'e.g. CJ / Phenom class',  speed: 410, accent: 'amber' }
+    single: { key: 'single', label: 'Single Piston', sub: 'e.g. C172 / PA-28 class',        speed: 140, accent: 'emerald', isJet: false, minRunway: null, fuelDefault: 12,  rateDefault: null },
+    twin:   { key: 'twin',   label: 'Twin Piston',   sub: 'e.g. BE58 / PA-34 class',        speed: 210, accent: 'sky',     isJet: false, minRunway: null, fuelDefault: 28,  rateDefault: null },
+    light:  { key: 'light',  label: 'Light Jet',     sub: 'logged average — your aircraft', speed: 389, accent: 'amber',   isJet: true,  minRunway: 4000, fuelDefault: 234, rateDefault: 4472.66, speedIncludesGround: true },
+    mid:    { key: 'mid',    label: 'Midsize Jet',   sub: 'e.g. XLS+ / Hawker / Latitude',  speed: 450, accent: 'violet',  isJet: true,  minRunway: 5000, fuelDefault: 220, rateDefault: null },
+    heavy:  { key: 'heavy',  label: 'Heavy Jet',     sub: 'e.g. G550 / Global / Falcon 7X', speed: 490, accent: 'rose',    isJet: true,  minRunway: 6000, fuelDefault: 350, rateDefault: null }
   };
-  var PROFILE_ORDER = ['single', 'twin', 'jet'];
+  var PROFILE_ORDER = ['single', 'twin', 'light', 'mid', 'heavy'];
 
   // Known published longest-runway lengths (ft). Anything not listed here
-  // defaults to DEFAULT_RUNWAY, exactly matching the "safe baseline estimate"
+  // defaults to DEFAULT_RUNWAY, matching the "safe baseline estimate"
   // requirement for fields without confirmed runway data.
   var RUNWAY_OVERRIDES = {
     KJFK:14511, KEWR:11000, KLGA:7003, KBOS:10083, KPHL:12000, KBWI:10502, KDCA:7169, KIAD:11500, KBID:2502, KMTP:3242,
     KATL:12390, KMCO:12004, KMIA:13016, KTPA:11002, KFLL:9000, KCLT:10000, KRDU:10000, KCHS:9001, KJAX:10000, KBNA:11030, KMEM:11120, KMSY:10003, KBHM:12000,
     KORD:13000, KMDW:6522, KDTW:12003, KMSP:12000, KSTL:11019, KMCI:10801, KIND:11200, KCVG:10000, KCLE:9000, KCMH:10125, KOMA:11001, KMKE:9690,
     KDFW:13401, KIAH:12001, KHOU:7602, KAUS:12250, KSAT:8502, KELP:13800, KABQ:13793, KPHX:11489, KTUS:10996, KLAS:14511, KOKC:9800, KTUL:10000,
-    KLAX:12091, KSFO:11870, KSAN:9401, KOAK:10000, KSJC:11000, KSMF:8600, KBUR:6886, KPDX:11000, KSEA:11901, KBOI:10000, KSLC:12000, KDEN:16000, KCOS:13501, KANC:10600, KRNO:11000,
-    KPVD:7166, KALB:8500, KBUF:8100, KPIT:11500, KRIC:9003, KORF:9000, KGSO:10001, KSAV:9351, KPBI:10007, KRSW:9001, KDAY:10900, KGRR:10001, KFAR:9086, KBIS:8974, KGEG:11002, KEUG:8009, KFAT:9219, KBFL:10859, KPSP:10002, KASE:8006, KJAC:6300, KBIL:10518, KGTF:10501, KMSO:9500, KBZN:9003,
+    KLAX:12091, KSFO:11870, KSAN:9401, KOAK:10000, KSJC:11000, KSMF:8600, KBUR:6886, KPDX:11000, KSEA:11901, KBOI:10000, KSLC:12000, KDEN:16000, KCOS:13501, PANC:10600, KRNO:11000,
+    KPVD:7166, KALB:8500, KBUF:8100, KPIT:11500, KRIC:9003, KORF:9000, KGSO:10001, KSAV:9351, KDJT:10007, KRSW:9001, KDAY:10900, KGRR:10001, KFAR:9086, KBIS:8974, KGEG:11002, KEUG:8009, KFAT:9219, KBFL:10859, KPSP:10002, KASE:8006, KJAC:6300, KBIL:10518, KGTF:10501, KMSO:9500, KBZN:9003,
     CYYZ:11120, CYTZ:3985, CYUL:11000, CYOW:10000, CYVR:11500, CYYC:14001, CYEG:11000, CYWG:11002, CYHZ:8800, CYQB:9600, CYXE:8500, CYQR:8800, CYFC:6000, CYQM:8000, CYYT:8500, CYXS:7500, CYXY:9500, CYZF:7500, CYQT:6800, CYSJ:6000, CYXX:7000, CYKA:7250, CYQU:6800, CYPK:3200
   };
 
   // Embedded fallback dataset — used automatically if the live fetch fails,
   // is blocked, or times out. Deliberately includes a few short-runway
-  // regional fields so the Light Jet runway advisory can always be exercised.
+  // regional fields so the jet-category runway advisories can always be exercised.
   var FALLBACK_AIRPORTS = [
     {icao:'KJFK',iata:'JFK',name:'John F. Kennedy International Airport',city:'New York',state:'NY',country:'US',lat:40.6413,lon:-73.7781},
     {icao:'KEWR',iata:'EWR',name:'Newark Liberty International Airport',city:'Newark',state:'NJ',country:'US',lat:40.6895,lon:-74.1745},
@@ -368,7 +506,7 @@
     {icao:'KSLC',iata:'SLC',name:'Salt Lake City International Airport',city:'Salt Lake City',state:'UT',country:'US',lat:40.7899,lon:-111.9791},
     {icao:'KDEN',iata:'DEN',name:'Denver International Airport',city:'Denver',state:'CO',country:'US',lat:39.8561,lon:-104.6737},
     {icao:'KCOS',iata:'COS',name:'Colorado Springs Airport',city:'Colorado Springs',state:'CO',country:'US',lat:38.8058,lon:-104.7008},
-    {icao:'KANC',iata:'ANC',name:'Ted Stevens Anchorage International Airport',city:'Anchorage',state:'AK',country:'US',lat:61.1743,lon:-149.9963},
+    {icao:'PANC',iata:'ANC',name:'Ted Stevens Anchorage International Airport',city:'Anchorage',state:'AK',country:'US',lat:61.1743,lon:-149.9963},
     {icao:'KRNO',iata:'RNO',name:'Reno-Tahoe International Airport',city:'Reno',state:'NV',country:'US',lat:39.4991,lon:-119.7681},
 
     {icao:'KPVD',iata:'PVD',name:'T.F. Green International Airport',city:'Providence',state:'RI',country:'US',lat:41.7240,lon:-71.4283},
@@ -379,7 +517,7 @@
     {icao:'KORF',iata:'ORF',name:'Norfolk International Airport',city:'Norfolk',state:'VA',country:'US',lat:36.8946,lon:-76.2012},
     {icao:'KGSO',iata:'GSO',name:'Piedmont Triad International Airport',city:'Greensboro',state:'NC',country:'US',lat:36.0978,lon:-79.9373},
     {icao:'KSAV',iata:'SAV',name:'Savannah/Hilton Head International Airport',city:'Savannah',state:'GA',country:'US',lat:32.1276,lon:-81.2021},
-    {icao:'KPBI',iata:'PBI',name:'Palm Beach International Airport',city:'West Palm Beach',state:'FL',country:'US',lat:26.6832,lon:-80.0956},
+    {icao:'KDJT',iata:'PBI',name:'President Donald J. Trump International Airport (formerly Palm Beach International)',city:'West Palm Beach',state:'FL',country:'US',lat:26.6832,lon:-80.0956},
     {icao:'KRSW',iata:'RSW',name:'Southwest Florida International Airport',city:'Fort Myers',state:'FL',country:'US',lat:26.5362,lon:-81.7552},
     {icao:'KDAY',iata:'DAY',name:'Dayton International Airport',city:'Dayton',state:'OH',country:'US',lat:39.9024,lon:-84.2194},
     {icao:'KGRR',iata:'GRR',name:'Gerald R. Ford International Airport',city:'Grand Rapids',state:'MI',country:'US',lat:42.8808,lon:-85.5228},
@@ -430,10 +568,15 @@
   var dataSource = 'pending'; // 'live' | 'fallback'
   var origin = null;
   var destination = null;
-  var activeProfile = 'twin';
+  var activeProfile = 'light';
   var lastRoute = null; // cached computation for cheap profile-switch re-render
   var dropdownItems = { origin: [], dest: [] };
   var highlightIndex = { origin: -1, dest: -1 };
+
+  var leafletOk = (typeof L !== 'undefined');
+  var routeMap = null, routeLine = null, originMarker = null, destMarker = null;
+
+  var costState = { mode: 'allin', fixedRate: 0, fuelBurn: 0, fuelUnit: 'gal', fuelPrice: 0, taxiOut: 10, taxiIn: 5 };
 
   /* =========================================================
      DOM REFS
@@ -445,7 +588,12 @@
      'profileButtons','promptState','resultsSection','safetyBanner','safetyBannerText',
      'statNM','statSM','statCourse','statETE','statETEProfile','statRunway',
      'profileGrid','alternatesGrid','courseArrow','swapBtn','infoBtn','infoModal','infoClose',
-     'footerDataNote'
+     'footerDataNote','routeMapContainer','mapFallback',
+     'costFixedRate','costFuelBurn','costFuelPrice','costTaxiOut','costTaxiIn',
+     'fuelUnitToggle','fuelPriceLabel','useTypicalBurn','costEngineTime','costFuelTotal',
+     'costFuelTotalUnit','costFuelCost','costNonFuel','costTotal','costTotalNote',
+     'costModeToggle','costFixedRateLabel','costFuelCostLabel','costFuelCostNote',
+     'costNonFuelLabel','costNonFuelNote','taxiHint'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
@@ -486,9 +634,16 @@
     var nameLC = (a.name || '').toLowerCase();
     if (nameLC.indexOf('heliport') !== -1) return false;
     if (nameLC.indexOf('closed') !== -1) return false;
-    var hasIata = a.iata && String(a.iata).trim().length === 3;
+    // A genuine ICAO identifier is always 4 alphabetic characters (K.../P... for
+    // the US, C... for Canada). Small private strips, ranches, and ag airfields
+    // in this dataset are instead keyed by FAA-style location identifiers that
+    // mix digits (e.g. "00AK", "6AK5", "AK12") — this single check reliably
+    // separates real public-use airports from those without pulling in a
+    // separate "type" field the source data doesn't provide.
+    var icao = String(a.icao).trim();
+    var isTrueIcao = icao.length === 4 && /^[A-Za-z]{4}$/.test(icao);
     var isOverride = Object.prototype.hasOwnProperty.call(RUNWAY_OVERRIDES, a.icao);
-    return !!(hasIata || isOverride);
+    return !!(isTrueIcao || isOverride);
   }
 
   function normalize(a) {
@@ -568,6 +723,30 @@
             Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
     var brng = toDeg(Math.atan2(y, x));
     return (brng + 360) % 360;
+  }
+
+  // Spherical interpolation along the great-circle arc between two points.
+  // Returns an array of [lat, lon] pairs (Leaflet's expected order) suitable
+  // for drawing a polyline that curves correctly on a Mercator basemap.
+  function greatCirclePoints(lat1, lon1, lat2, lon2, segments) {
+    var phi1 = toRad(lat1), lam1 = toRad(lon1);
+    var phi2 = toRad(lat2), lam2 = toRad(lon2);
+    var d = haversine(lat1, lon1, lat2, lon2, 1); // angular distance, radians (R=1)
+    if (d < 1e-9) return [[lat1, lon1], [lat2, lon2]];
+
+    var points = [];
+    for (var i = 0; i <= segments; i++) {
+      var f = i / segments;
+      var A = Math.sin((1 - f) * d) / Math.sin(d);
+      var B = Math.sin(f * d) / Math.sin(d);
+      var x = A * Math.cos(phi1) * Math.cos(lam1) + B * Math.cos(phi2) * Math.cos(lam2);
+      var y = A * Math.cos(phi1) * Math.sin(lam1) + B * Math.cos(phi2) * Math.sin(lam2);
+      var z = A * Math.sin(phi1) + B * Math.sin(phi2);
+      var phi = Math.atan2(z, Math.sqrt(x * x + y * y));
+      var lam = Math.atan2(y, x);
+      points.push([toDeg(phi), toDeg(lam)]);
+    }
+    return points;
   }
 
   function formatETE(hoursDecimal) {
@@ -760,16 +939,19 @@
     renderSafetyBanner();
     renderProfileGrid();
     renderAlternates();
+    renderRouteMap();
+    computeCostEstimate();
   }
 
   function renderSafetyBanner() {
-    var show = activeProfile === 'jet' && destination.runway < MIN_JET_RUNWAY;
+    var profile = AIRCRAFT_PROFILES[activeProfile];
+    var show = profile.isJet && destination.runway < profile.minRunway;
     if (show) {
       el.safetyBanner.classList.remove('hidden');
       el.safetyBanner.classList.add('flex');
       el.safetyBannerText.textContent =
         destination.icao + ' publishes a longest runway of ' + destination.runway.toLocaleString() +
-        ' ft — below the ' + MIN_JET_RUNWAY.toLocaleString() + ' ft reference minimum typically assumed for Light Jet category operations. ' +
+        ' ft — below the ' + profile.minRunway.toLocaleString() + ' ft reference minimum typically assumed for ' + profile.label + ' category operations. ' +
         'Verify balanced-field length, density altitude, and runway surface before dispatch, or select an alternate below.';
     } else {
       el.safetyBanner.classList.add('hidden');
@@ -800,15 +982,19 @@
 
   function renderAlternates() {
     var r = lastRoute;
+    var profile = AIRCRAFT_PROFILES[activeProfile];
     if (!r.alternates.length) {
       el.alternatesGrid.innerHTML = '<p class="text-sm text-slate-500 col-span-3">No alternate fields found in the loaded dataset.</p>';
       return;
     }
     var html = r.alternates.map(function (item) {
       var a = item.airport;
-      var flag = a.runway < MIN_JET_RUNWAY
-        ? '<span class="text-[10px] font-mono2 text-amber-400">SHORT FIELD</span>'
-        : '<span class="text-[10px] font-mono2 text-slate-600">RWY OK — JET</span>';
+      var flag = '';
+      if (profile.isJet) {
+        flag = a.runway < profile.minRunway
+          ? '<span class="text-[10px] font-mono2 text-amber-400">SHORT FOR ' + profile.label.toUpperCase() + '</span>'
+          : '<span class="text-[10px] font-mono2 text-slate-600">RWY OK</span>';
+      }
       return (
         '<div class="result-card border border-slate-800 rounded-xl p-3.5 bg-slate-950/40">' +
           '<div class="flex items-start justify-between gap-2 mb-1">' +
@@ -828,13 +1014,59 @@
   }
 
   /* =========================================================
+     ROUTE MAP (Leaflet + CARTO dark basemap)
+  ========================================================= */
+  function ensureMapReady() {
+    if (!leafletOk) return false;
+    if (routeMap) return true;
+    try {
+      routeMap = L.map('routeMapContainer', { scrollWheelZoom: false, attributionControl: true });
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }).addTo(routeMap);
+      routeLine = L.polyline([], { color: '#22d3ee', weight: 3, opacity: 0.85 }).addTo(routeMap);
+      originMarker = L.circleMarker([0, 0], { radius: 7, color: '#34d399', fillColor: '#34d399', fillOpacity: 0.9, weight: 2 }).addTo(routeMap);
+      destMarker = L.circleMarker([0, 0], { radius: 7, color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 0.9, weight: 2 }).addTo(routeMap);
+      return true;
+    } catch (e) {
+      console.warn('[AERONAV·FPX] Map initialization failed:', e);
+      leafletOk = false;
+      return false;
+    }
+  }
+
+  function renderRouteMap() {
+    if (!origin || !destination) return;
+    if (!ensureMapReady()) {
+      if (el.mapFallback) el.mapFallback.classList.remove('hidden');
+      return;
+    }
+    if (el.mapFallback) el.mapFallback.classList.add('hidden');
+
+    var pts = greatCirclePoints(origin.lat, origin.lon, destination.lat, destination.lon, 64);
+    routeLine.setLatLngs(pts);
+    originMarker.setLatLng([origin.lat, origin.lon]);
+    destMarker.setLatLng([destination.lat, destination.lon]);
+    originMarker.bindPopup('<strong>' + origin.icao + '</strong> — ' + escapeHtml(origin.name));
+    destMarker.bindPopup('<strong>' + destination.icao + '</strong> — ' + escapeHtml(destination.name));
+
+    var bounds = L.latLngBounds([[origin.lat, origin.lon], [destination.lat, destination.lon]]);
+    routeMap.fitBounds(bounds, { padding: [36, 36] });
+    setTimeout(function () { if (routeMap) routeMap.invalidateSize(); }, 60);
+  }
+
+  /* =========================================================
      PROFILE BUTTONS
   ========================================================= */
   function buildProfileButtons() {
     var accentMap = {
       emerald: { border: 'border-emerald-400/70', bg: 'bg-emerald-500/10', text: 'text-emerald-300' },
       sky:     { border: 'border-sky-400/70',     bg: 'bg-sky-500/10',     text: 'text-sky-300' },
-      amber:   { border: 'border-amber-400/70',   bg: 'bg-amber-500/10',   text: 'text-amber-300' }
+      amber:   { border: 'border-amber-400/70',   bg: 'bg-amber-500/10',   text: 'text-amber-300' },
+      violet:  { border: 'border-violet-400/70',  bg: 'bg-violet-500/10',  text: 'text-violet-300' },
+      rose:    { border: 'border-rose-400/70',    bg: 'bg-rose-500/10',    text: 'text-rose-300' }
     };
     var html = PROFILE_ORDER.map(function (key) {
       var p = AIRCRAFT_PROFILES[key];
@@ -857,11 +1089,189 @@
     if (!AIRCRAFT_PROFILES[key] || key === activeProfile) return;
     activeProfile = key;
     buildProfileButtons();
+    updateTypicalBurnButton();
     if (lastRoute) renderResults();
   }
 
   /* =========================================================
-     EVENT WIRING
+     COST & FUEL ESTIMATOR
+  ========================================================= */
+  function loadCostState() {
+    try {
+      var raw = localStorage.getItem(COST_STORAGE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        for (var k in saved) { if (Object.prototype.hasOwnProperty.call(costState, k)) costState[k] = saved[k]; }
+        return true;
+      }
+    } catch (e) { /* localStorage unavailable — defaults stand */ }
+    return false;
+  }
+
+  function saveCostState() {
+    try { localStorage.setItem(COST_STORAGE_KEY, JSON.stringify(costState)); } catch (e) { /* ignore */ }
+  }
+
+  function applyCostStateToInputs() {
+    el.costFixedRate.value = costState.fixedRate || '';
+    el.costFuelBurn.value = costState.fuelBurn || '';
+    el.costFuelPrice.value = costState.fuelPrice || '';
+    el.costTaxiOut.value = costState.taxiOut;
+    el.costTaxiIn.value = costState.taxiIn;
+    setFuelUnitUI(costState.fuelUnit);
+  }
+
+  function setFuelUnitUI(unit) {
+    costState.fuelUnit = unit;
+    var buttons = el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn');
+    buttons.forEach(function (b) {
+      var isLbs = b.getAttribute('data-unit') === 'lbs';
+      var active = b.getAttribute('data-unit') === unit;
+      b.className = 'fuel-unit-btn px-2 py-1 text-[10px] font-mono2 ' +
+        (isLbs ? 'border-l border-slate-700 ' : '') +
+        (active ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-slate-300');
+    });
+    el.fuelPriceLabel.textContent = 'Fuel Price ($/' + (unit === 'gal' ? 'gal' : 'lb') + ')';
+    el.costFuelTotalUnit.textContent = unit === 'gal' ? 'gal' : 'lb';
+  }
+
+  function defaultTaxiFor(profile) {
+    return profile.speedIncludesGround ? { out: 0, in: 0 } : { out: 10, in: 5 };
+  }
+
+  function updateTaxiHint() {
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    if (p.speedIncludesGround) {
+      el.taxiHint.textContent = p.label + '\u2019s speed is derived from all-in logged hours that already include ground/taxi time \u2014 leave these at 0 unless adding extra delay beyond your logged average.';
+      el.taxiHint.classList.remove('hidden');
+    } else {
+      el.taxiHint.classList.add('hidden');
+    }
+  }
+
+  function updateTypicalBurnButton() {
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    if (p.rateDefault) {
+      el.useTypicalBurn.textContent = 'Use ' + p.label + ' logged average: $' + p.rateDefault.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/hr all-in, ' + p.fuelDefault + ' gal/hr →';
+    } else {
+      el.useTypicalBurn.textContent = 'Use typical ' + p.label + ' burn (' + p.fuelDefault + ' gal/hr) →';
+    }
+    updateTaxiHint();
+  }
+
+  function readCostInputs() {
+    costState.fixedRate = parseFloat(el.costFixedRate.value) || 0;
+    costState.fuelBurn = parseFloat(el.costFuelBurn.value) || 0;
+    costState.fuelPrice = parseFloat(el.costFuelPrice.value) || 0;
+    costState.taxiOut = parseFloat(el.costTaxiOut.value) || 0;
+    costState.taxiIn = parseFloat(el.costTaxiIn.value) || 0;
+    saveCostState();
+  }
+
+  function setCostMode(mode) {
+    costState.mode = mode;
+    var buttons = el.costModeToggle.querySelectorAll('.cost-mode-btn');
+    buttons.forEach(function (b) {
+      var isItemized = b.getAttribute('data-mode') === 'itemized';
+      var active = b.getAttribute('data-mode') === mode;
+      b.className = 'cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 ' +
+        (isItemized ? 'border-l border-slate-700 ' : '') +
+        (active ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500 hover:text-slate-300');
+    });
+    if (mode === 'allin') {
+      el.costFixedRateLabel.textContent = 'All-In Rate ($/hr)';
+      el.costFixedRate.placeholder = 'e.g. 3200';
+      el.costFuelCostLabel.textContent = 'Fuel Cost (ref.)';
+      el.costFuelCostNote.textContent = 'informational — already in rate';
+      el.costNonFuelLabel.textContent = 'All-In Cost';
+      el.costNonFuelNote.textContent = 'all-in rate × engine time';
+    } else {
+      el.costFixedRateLabel.textContent = 'Fixed Hourly Rate, Non-Fuel ($/hr)';
+      el.costFixedRate.placeholder = 'e.g. 450';
+      el.costFuelCostLabel.textContent = 'Fuel Cost';
+      el.costFuelCostNote.textContent = 'at entered price';
+      el.costNonFuelLabel.textContent = 'Non-Fuel Cost';
+      el.costNonFuelNote.textContent = 'fixed rate × engine time';
+    }
+  }
+
+  function computeCostEstimate() {
+    if (!lastRoute) return;
+    readCostInputs();
+
+    var flightHrs = lastRoute.eteByProfile[activeProfile];
+    var taxiHrs = (costState.taxiOut + costState.taxiIn) / 60;
+    var engineHrs = flightHrs + taxiHrs;
+
+    var fuelTotal = costState.fuelBurn * engineHrs;
+    var fuelCostRef = fuelTotal * costState.fuelPrice; // computed either way; only added to total in itemized mode
+    var rateCost = costState.fixedRate * engineHrs;
+    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
+
+    el.costEngineTime.textContent = formatETE(engineHrs);
+    el.costFuelTotal.textContent = fmtNum(fuelTotal, 1);
+    el.costFuelCost.textContent = '$' + fmtNum(fuelCostRef, 2);
+    el.costNonFuel.textContent = '$' + fmtNum(rateCost, 2);
+    el.costTotal.textContent = '$' + fmtNum(totalCost, 2);
+    el.costTotalNote.textContent = costState.fixedRate
+      ? engineHrs.toFixed(2) + ' hr engine time'
+      : 'enter your rate above for a live total';
+  }
+
+  function setupCostCalculator() {
+    var hadSaved = loadCostState();
+    if (!hadSaved) {
+      var p0 = AIRCRAFT_PROFILES[activeProfile];
+      var taxi0 = defaultTaxiFor(p0);
+      costState.fuelBurn = p0.fuelDefault;
+      costState.fuelUnit = 'gal';
+      costState.mode = 'allin';
+      costState.taxiOut = taxi0.out;
+      costState.taxiIn = taxi0.in;
+      if (p0.rateDefault) costState.fixedRate = p0.rateDefault;
+    }
+    applyCostStateToInputs();
+    setCostMode(costState.mode);
+    updateTypicalBurnButton();
+
+    [el.costFixedRate, el.costFuelBurn, el.costFuelPrice, el.costTaxiOut, el.costTaxiIn].forEach(function (input) {
+      input.addEventListener('input', function () { computeCostEstimate(); });
+    });
+
+    el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setFuelUnitUI(btn.getAttribute('data-unit'));
+        readCostInputs();
+        computeCostEstimate();
+      });
+    });
+
+    el.costModeToggle.querySelectorAll('.cost-mode-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setCostMode(btn.getAttribute('data-mode'));
+        saveCostState();
+        computeCostEstimate();
+      });
+    });
+
+    el.useTypicalBurn.addEventListener('click', function () {
+      var p = AIRCRAFT_PROFILES[activeProfile];
+      var taxi = defaultTaxiFor(p);
+      setFuelUnitUI('gal');
+      el.costFuelBurn.value = p.fuelDefault;
+      el.costTaxiOut.value = taxi.out;
+      el.costTaxiIn.value = taxi.in;
+      if (p.rateDefault) {
+        setCostMode('allin');
+        el.costFixedRate.value = p.rateDefault;
+      }
+      readCostInputs();
+      computeCostEstimate();
+    });
+  }
+
+  /* =========================================================
+     EVENT WIRING — search inputs, swap, info modal
   ========================================================= */
   function setupInputHandlers(field) {
     var input = field === 'origin' ? el.originInput : el.destInput;
@@ -872,7 +1282,6 @@
       dropdownItems[field] = results;
       highlightIndex[field] = -1;
       renderDropdown(field);
-      // typing invalidates a previous lock-in for this field
       if (field === 'origin') origin = null; else destination = null;
       var box = field === 'origin' ? el.originSummary : el.destSummary;
       box.classList.add('hidden');
@@ -903,7 +1312,6 @@
     });
 
     input.addEventListener('blur', function () {
-      // slight delay so a click on a dropdown option registers first
       setTimeout(function () { hideDropdown(field); }, 150);
     });
   }
@@ -972,10 +1380,21 @@
     setupProfileClicks();
     setupSwap();
     setupInfoModal();
+    setupCostCalculator();
     loadAirportData();
   });
 
 })();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('service-worker.js').catch(function (err) {
+        console.warn('[AERONAV·FPX] Service worker registration failed (app still works normally):', err);
+      });
+    });
+  }
 </script>
 </body>
 </html>
