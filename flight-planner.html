@@ -1662,4 +1662,287 @@
             '<span class="text-sm font-medium ' + (isActive ? a.text : 'text-slate-300') + '">' + p.label + '</span>' +
             '<span class="font-mono2 text-xs ' + (isActive ? a.text : 'text-slate-500') + '">' + p.speed + ' KTAS</span>' +
           '</div>' +
-          '<p class="text-[11px] tex
+          '<p class="text-[11px] text-slate-500">' + p.sub + '</p>' +
+        '</button>'
+      );
+    }).join('');
+    el.profileButtons.innerHTML = html;
+  }
+
+  function setActiveProfile(key) {
+    if (!AIRCRAFT_PROFILES[key] || key === activeProfile) return;
+    activeProfile = key;
+    buildProfileButtons();
+    updateTypicalBurnButton();
+    if (lastItinerary) renderResults();
+  }
+
+  /* =========================================================
+     COST & FUEL ESTIMATOR
+  ========================================================= */
+  function defaultTaxiFor(profile) {
+    return profile.speedIncludesGround ? { out: 0, in: 0 } : { out: 10, in: 5 };
+  }
+
+  function updateTaxiHint() {
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    if (p.speedIncludesGround) {
+      el.taxiHint.textContent = p.label + '\u2019s speed is derived from all-in logged hours that already include ground/taxi time \u2014 leave these at 0 unless adding extra delay beyond your logged average.';
+      el.taxiHint.classList.remove('hidden');
+    } else {
+      el.taxiHint.classList.add('hidden');
+    }
+  }
+
+  function loadCostState() {
+    try {
+      var raw = localStorage.getItem(COST_STORAGE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        for (var k in saved) { if (Object.prototype.hasOwnProperty.call(costState, k)) costState[k] = saved[k]; }
+        return true;
+      }
+    } catch (e) { /* localStorage unavailable — defaults stand */ }
+    return false;
+  }
+
+  function saveCostState() {
+    try { localStorage.setItem(COST_STORAGE_KEY, JSON.stringify(costState)); } catch (e) { /* ignore */ }
+  }
+
+  function applyCostStateToInputs() {
+    el.costFixedRate.value = costState.fixedRate || '';
+    el.costFuelBurn.value = costState.fuelBurn || '';
+    el.costFuelPrice.value = costState.fuelPrice || '';
+    el.costTaxiOut.value = costState.taxiOut;
+    el.costTaxiIn.value = costState.taxiIn;
+    setFuelUnitUI(costState.fuelUnit);
+  }
+
+  function setFuelUnitUI(unit) {
+    costState.fuelUnit = unit;
+    var buttons = el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn');
+    buttons.forEach(function (b) {
+      var isLbs = b.getAttribute('data-unit') === 'lbs';
+      var active = b.getAttribute('data-unit') === unit;
+      b.className = 'fuel-unit-btn px-2 py-1 text-[10px] font-mono2 ' +
+        (isLbs ? 'border-l border-slate-700 ' : '') +
+        (active ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-slate-300');
+    });
+    el.fuelPriceLabel.textContent = 'Fuel Price ($/' + (unit === 'gal' ? 'gal' : 'lb') + ')';
+    el.costFuelTotalUnit.textContent = unit === 'gal' ? 'gal' : 'lb';
+  }
+
+  function setCostMode(mode) {
+    costState.mode = mode;
+    var buttons = el.costModeToggle.querySelectorAll('.cost-mode-btn');
+    buttons.forEach(function (b) {
+      var isItemized = b.getAttribute('data-mode') === 'itemized';
+      var active = b.getAttribute('data-mode') === mode;
+      b.className = 'cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 ' +
+        (isItemized ? 'border-l border-slate-700 ' : '') +
+        (active ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500 hover:text-slate-300');
+    });
+    if (mode === 'allin') {
+      el.costFixedRateLabel.textContent = 'All-In Rate ($/hr)';
+      el.costFixedRate.placeholder = 'e.g. 3200';
+      el.costFuelCostLabel.textContent = 'Fuel Cost (ref.)';
+      el.costFuelCostNote.textContent = 'informational — already in rate';
+      el.costNonFuelLabel.textContent = 'All-In Cost';
+      el.costNonFuelNote.textContent = 'all-in rate × engine time';
+    } else {
+      el.costFixedRateLabel.textContent = 'Fixed Hourly Rate, Non-Fuel ($/hr)';
+      el.costFixedRate.placeholder = 'e.g. 450';
+      el.costFuelCostLabel.textContent = 'Fuel Cost';
+      el.costFuelCostNote.textContent = 'at entered price';
+      el.costNonFuelLabel.textContent = 'Non-Fuel Cost';
+      el.costNonFuelNote.textContent = 'fixed rate × engine time';
+    }
+  }
+
+  function updateTypicalBurnButton() {
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    if (p.rateDefault) {
+      el.useTypicalBurn.textContent = 'Use ' + p.label + ' logged average: $' + p.rateDefault.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/hr all-in, ' + p.fuelDefault + ' gal/hr →';
+    } else {
+      el.useTypicalBurn.textContent = 'Use typical ' + p.label + ' burn (' + p.fuelDefault + ' gal/hr) →';
+    }
+    updateTaxiHint();
+  }
+
+  function readCostInputs() {
+    costState.fixedRate = parseFloat(el.costFixedRate.value) || 0;
+    costState.fuelBurn = parseFloat(el.costFuelBurn.value) || 0;
+    costState.fuelPrice = parseFloat(el.costFuelPrice.value) || 0;
+    costState.taxiOut = parseFloat(el.costTaxiOut.value) || 0;
+    costState.taxiIn = parseFloat(el.costTaxiIn.value) || 0;
+    saveCostState();
+  }
+
+  function computeCostEstimate() {
+    if (!lastItinerary) return;
+    readCostInputs();
+
+    var flightHrs = totalEffectiveEteHrs(activeProfile);
+    var legCount = lastItinerary.legs.length;
+    var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
+    var engineHrs = flightHrs + taxiHrsTotal;
+
+    var fuelTotal = costState.fuelBurn * engineHrs;
+    var fuelCostRef = fuelTotal * costState.fuelPrice;
+    var rateCost = costState.fixedRate * engineHrs;
+    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
+
+    el.costEngineTime.textContent = formatETE(engineHrs);
+    el.costEngineNote.textContent = legCount + ' leg' + (legCount > 1 ? 's' : '') + ' × ' + (costState.taxiOut + costState.taxiIn) + ' min taxi';
+    el.costFuelTotal.textContent = fmtNum(fuelTotal, 1);
+    el.costFuelCost.textContent = '$' + fmtNum(fuelCostRef, 2);
+    el.costNonFuel.textContent = '$' + fmtNum(rateCost, 2);
+    el.costTotal.textContent = '$' + fmtNum(totalCost, 2);
+    el.costTotalNote.textContent = costState.fixedRate
+      ? engineHrs.toFixed(2) + ' hr engine time'
+      : 'enter your rate above for a live total';
+  }
+
+  function setupCostCalculator() {
+    var hadSaved = loadCostState();
+    if (!hadSaved) {
+      var p0 = AIRCRAFT_PROFILES[activeProfile];
+      var taxi0 = defaultTaxiFor(p0);
+      costState.fuelBurn = p0.fuelDefault;
+      costState.fuelUnit = 'gal';
+      costState.mode = 'allin';
+      costState.taxiOut = taxi0.out;
+      costState.taxiIn = taxi0.in;
+      if (p0.rateDefault) costState.fixedRate = p0.rateDefault;
+    }
+    applyCostStateToInputs();
+    setCostMode(costState.mode);
+    updateTypicalBurnButton();
+
+    [el.costFixedRate, el.costFuelBurn, el.costFuelPrice, el.costTaxiOut, el.costTaxiIn].forEach(function (input) {
+      input.addEventListener('input', function () { computeCostEstimate(); });
+    });
+
+    el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setFuelUnitUI(btn.getAttribute('data-unit'));
+        readCostInputs();
+        computeCostEstimate();
+      });
+    });
+
+    el.costModeToggle.querySelectorAll('.cost-mode-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setCostMode(btn.getAttribute('data-mode'));
+        saveCostState();
+        computeCostEstimate();
+      });
+    });
+
+    el.useTypicalBurn.addEventListener('click', function () {
+      var p = AIRCRAFT_PROFILES[activeProfile];
+      var taxi = defaultTaxiFor(p);
+      setFuelUnitUI('gal');
+      el.costFuelBurn.value = p.fuelDefault;
+      el.costTaxiOut.value = taxi.out;
+      el.costTaxiIn.value = taxi.in;
+      if (p.rateDefault) {
+        setCostMode('allin');
+        el.costFixedRate.value = p.rateDefault;
+      }
+      readCostInputs();
+      computeCostEstimate();
+    });
+  }
+
+  /* =========================================================
+     EVENT WIRING — route builder, wind, profiles, info modal
+  ========================================================= */
+  function setupRouteBuilderControls() {
+    el.addStopBtn.addEventListener('click', addStop);
+    el.reverseRouteBtn.addEventListener('click', reverseRoute);
+    el.roundTripToggle.addEventListener('change', function () {
+      roundTrip = el.roundTripToggle.checked;
+      validateAndCompute();
+    });
+  }
+
+  function setupWindControls() {
+    el.windToggle.addEventListener('change', function () {
+      windEnabled = el.windToggle.checked;
+      if (windEnabled && lastItinerary) {
+        var key = buildItineraryKey(lastItinerary.legs);
+        if (windDataKey !== key) {
+          fetchWindForItinerary();
+        } else {
+          renderWindStatus();
+          renderResults();
+        }
+      } else {
+        renderWindStatus();
+        if (lastItinerary) renderResults();
+      }
+    });
+    el.windRefreshBtn.addEventListener('click', function () {
+      if (lastItinerary) fetchWindForItinerary();
+    });
+  }
+
+  function setupProfileClicks() {
+    el.profileButtons.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-profile]');
+      if (!btn) return;
+      setActiveProfile(btn.getAttribute('data-profile'));
+    });
+  }
+
+  function setupInfoModal() {
+    el.infoBtn.addEventListener('click', function () {
+      el.infoModal.classList.remove('hidden');
+      el.infoModal.classList.add('flex');
+    });
+    el.infoClose.addEventListener('click', closeModal);
+    el.infoModal.addEventListener('click', function (e) {
+      if (e.target === el.infoModal) closeModal();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeModal();
+    });
+    function closeModal() {
+      el.infoModal.classList.add('hidden');
+      el.infoModal.classList.remove('flex');
+    }
+  }
+
+  /* =========================================================
+     INIT
+  ========================================================= */
+  document.addEventListener('DOMContentLoaded', function () {
+    cacheEls();
+    renderWaypointList();
+    setupWaypointListClicks();
+    buildProfileButtons();
+    setupProfileClicks();
+    setupRouteBuilderControls();
+    setupWindControls();
+    setupPublishButton();
+    setupInfoModal();
+    setupCostCalculator();
+    loadAirportData();
+  });
+
+})();
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('service-worker.js').catch(function (err) {
+        console.warn('[AERONAV·FPX] Service worker registration failed (app still works normally):', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
