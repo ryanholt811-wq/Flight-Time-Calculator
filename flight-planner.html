@@ -65,6 +65,9 @@
   .result-card { transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease; }
   .profile-btn { transition: all 0.18s ease; }
   .profile-btn:not(.active):hover { border-color: rgba(148,163,184,0.5); background: rgba(51,65,85,0.35); }
+  .tab-btn { color: #64748b; border-bottom-color: transparent; }
+  .tab-btn:hover { color: #cbd5e1; }
+  .tab-btn.active { color: #22d3ee; border-bottom-color: #22d3ee; }
 
   input:focus { outline: none; }
   .search-input:focus { box-shadow: 0 0 0 2px rgba(34,211,238,0.35); }
@@ -165,10 +168,10 @@
     </div>
   </section>
 
-  <!-- Aircraft profile toggle + wind correction -->
+  <!-- Aircraft search + wind correction -->
   <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5 print:hidden">
     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-      <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Flight Profile — Performance Ruleset</h2>
+      <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Aircraft — Search &amp; Select</h2>
       <div class="flex items-center gap-3">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="windToggle" class="sr-only peer">
@@ -186,8 +189,13 @@
         </button>
       </div>
     </div>
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" id="profileButtons"></div>
-    <p class="text-[10px] text-slate-600 mt-2">representative category cruise speeds<span id="windCaption"></span></p>
+    <div class="relative">
+      <input id="aircraftSearchInput" type="text" autocomplete="off" placeholder="Search manufacturer or model — e.g. CJ3, King Air, G450, Falcon 900, Challenger…"
+        class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 font-mono2" />
+      <div id="aircraftDropdown" class="hidden absolute left-0 right-0 mt-1 z-40 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-72 overflow-y-auto"></div>
+    </div>
+    <div id="aircraftSummary" class="mt-3"></div>
+    <p class="text-[10px] text-slate-600 mt-2">21 aircraft in database — your own logged jet plus 20 researched types<span id="windCaption"></span></p>
   </section>
 
   <!-- Prompt / awaiting state -->
@@ -210,6 +218,14 @@
         Publish Itinerary (PDF)
       </button>
     </div>
+
+    <!-- Tab switcher -->
+    <div class="flex items-center gap-1 border-b border-slate-800" id="tabSwitcher">
+      <button type="button" data-tab="flightplan" class="tab-btn px-4 py-2 text-xs font-mono2 uppercase tracking-widest border-b-2 transition">Flight Plan</button>
+      <button type="button" data-tab="compare" class="tab-btn px-4 py-2 text-xs font-mono2 uppercase tracking-widest border-b-2 transition">Fleet Comparison</button>
+    </div>
+
+    <div id="tabFlightPlan" class="space-y-5">
 
     <!-- Safety banner -->
     <div id="safetyBanner" class="hidden items-start gap-3 bg-red-950/50 border border-red-800/70 rounded-2xl p-4">
@@ -274,75 +290,111 @@
       </div>
     </div>
 
-    <!-- Leg breakdown + fleet comparison -->
-    <div class="grid md:grid-cols-3 gap-4">
-      <div class="panel border border-slate-800 rounded-2xl p-4">
-        <div class="flex items-center justify-between mb-3">
-          <p class="text-[11px] uppercase tracking-widest text-slate-500">Leg-by-Leg Breakdown</p>
-          <span id="legCountBadge" class="text-[10px] font-mono2 text-slate-600">—</span>
-        </div>
-        <div id="legBreakdown" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
+    <!-- Leg breakdown -->
+    <div class="panel border border-slate-800 rounded-2xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500">Leg-by-Leg Breakdown</p>
+        <span id="legCountBadge" class="text-[10px] font-mono2 text-slate-600">—</span>
       </div>
-
-      <div class="md:col-span-2 panel border border-slate-800 rounded-2xl p-4">
-        <p class="text-[11px] uppercase tracking-widest text-slate-500 mb-3">Performance Comparison — Total Trip, All Fleet Categories</p>
-        <div id="profileGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
-      </div>
+      <div id="legBreakdown" class="space-y-2 max-h-72 overflow-y-auto pr-1"></div>
     </div>
 
-    <!-- Cost & Fuel Estimator -->
+    <!-- Aircraft Cost & Performance Profile -->
     <div class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-[11px] uppercase tracking-widest text-slate-500">Cost &amp; Fuel Estimator</p>
-        <span class="text-[10px] font-mono2 text-slate-600">USER-SUPPLIED RATES</span>
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500">Aircraft Cost &amp; Performance Profile</p>
+        <button type="button" id="resetAircraftDefaults" class="text-[10px] text-cyan-500 hover:text-cyan-300 underline decoration-dotted">Reset to researched defaults</button>
       </div>
+      <p id="aircraftDataNote" class="hidden text-[10px] text-amber-500/80 mb-3"></p>
 
-      <div class="flex items-center gap-2 mb-3">
-        <span class="text-[11px] text-slate-500">Rate Mode:</span>
-        <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden" id="costModeToggle">
-          <button type="button" data-mode="allin" class="cost-mode-btn px-2.5 py-1 text-[10px] font-mono2">ALL-IN $/HR</button>
-          <button type="button" data-mode="itemized" class="cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 border-l border-slate-700">ITEMIZED</button>
-        </div>
-        <span class="text-[10px] text-slate-600 hidden sm:inline">All-in = fuel, crew, insurance, hangar, landing fees, MSP, everything blended into one $/hr</span>
-      </div>
-
-      <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+      <p class="text-[10px] text-slate-600 mb-2 mt-2">Hourly cost breakdown — editable, defaults per aircraft</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <div>
-          <label id="costFixedRateLabel" class="block text-[11px] text-slate-500 mb-1">All-In Rate ($/hr)</label>
-          <input id="costFixedRate" type="number" min="0" step="1" placeholder="e.g. 3200"
-            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <label class="block text-[11px] text-slate-500 mb-1">Fixed Costs ($/hr)</label>
+          <input id="acFixed" type="number" min="0" step="1" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <p class="text-[10px] text-slate-600 mt-0.5">crew salary, training, hangar, insurance</p>
         </div>
         <div>
-          <label class="block text-[11px] text-slate-500 mb-1">Fuel Burn Rate</label>
+          <label class="block text-[11px] text-slate-500 mb-1">Variable Costs ($/hr)</label>
+          <input id="acVariable" type="number" min="0" step="1" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <p class="text-[10px] text-slate-600 mt-0.5">crew travel, catering, airport/landing fees</p>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">MSP / Engine Reserve ($/hr)</label>
+          <input id="acMsp" type="number" min="0" step="1" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <p class="text-[10px] text-slate-600 mt-0.5">engine + APU overhaul funding</p>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Maintenance Reserve ($/hr)</label>
+          <input id="acMaint" type="number" min="0" step="1" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <p class="text-[10px] text-slate-600 mt-0.5">airframe scheduled + unscheduled upkeep</p>
+        </div>
+      </div>
+
+      <p class="text-[10px] text-slate-600 mb-2">Powerplant &amp; performance — editable, defaults per aircraft</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Engine Type</label>
+          <input id="acEngineType" type="text" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1"># of Engines</label>
+          <input id="acEngineCount" type="number" min="1" max="4" step="1" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Avg. Cruise Altitude (ft)</label>
+          <input id="acCruiseAlt" type="number" min="0" step="500" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Fuel / Engine / hr (derived)</label>
+          <p id="acFuelPerEngine" class="w-full bg-slate-950/40 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-400 font-mono2">—</p>
+        </div>
+      </div>
+
+      <p class="text-[10px] text-slate-600 mb-2">Fuel burn — editable, defaults per aircraft</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Fuel Burn — 1st Hour</label>
           <div class="flex gap-1.5">
-            <input id="costFuelBurn" type="number" min="0" step="0.1" placeholder="e.g. 28"
-              class="search-input flex-1 min-w-0 bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+            <input id="acFuel1st" type="number" min="0" step="0.5" class="search-input flex-1 min-w-0 bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
             <div class="inline-flex rounded-lg border border-slate-700 overflow-hidden shrink-0" id="fuelUnitToggle">
               <button type="button" data-unit="gal" class="fuel-unit-btn px-2 py-1 text-[10px] font-mono2">GAL</button>
               <button type="button" data-unit="lbs" class="fuel-unit-btn px-2 py-1 text-[10px] font-mono2 border-l border-slate-700">LBS</button>
             </div>
           </div>
-          <button type="button" id="useTypicalBurn" class="text-[10px] text-cyan-500 hover:text-cyan-300 mt-1 underline decoration-dotted text-left"></button>
+          <p class="text-[10px] text-slate-600 mt-0.5">climb + early cruise, per leg</p>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-500 mb-1">Fuel Burn — Subsequent Hours</label>
+          <input id="acFuelCruise" type="number" min="0" step="0.5" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          <p class="text-[10px] text-slate-600 mt-0.5">steady cruise rate</p>
         </div>
         <div>
           <label id="fuelPriceLabel" class="block text-[11px] text-slate-500 mb-1">Fuel Price ($/gal)</label>
-          <input id="costFuelPrice" type="number" min="0" step="0.01" placeholder="e.g. 6.25"
+          <input id="costFuelPrice" type="number" min="0" step="0.01" placeholder="e.g. 5.25"
             class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
         </div>
-        <div>
-          <label class="block text-[11px] text-slate-500 mb-1">Taxi-Out (min / leg)</label>
-          <input id="costTaxiOut" type="number" min="0" step="1" value="10"
-            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+        <div class="grid grid-cols-2 gap-1.5">
+          <div>
+            <label class="block text-[11px] text-slate-500 mb-1">Taxi-Out (min/leg)</label>
+            <input id="costTaxiOut" type="number" min="0" step="1" value="10" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-slate-500 mb-1">Taxi-In (min/leg)</label>
+            <input id="costTaxiIn" type="number" min="0" step="1" value="5" class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
+          </div>
         </div>
-        <div>
-          <label class="block text-[11px] text-slate-500 mb-1">Taxi-In (min / leg)</label>
-          <input id="costTaxiIn" type="number" min="0" step="1" value="5"
-            class="search-input w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono2" />
-        </div>
-        <p id="taxiHint" class="hidden sm:col-span-2 lg:col-span-5 text-[10px] text-amber-500/80 -mt-1"></p>
       </div>
+      <p id="taxiHint" class="hidden text-[10px] text-amber-500/80 mt-3"></p>
+    </div>
 
-      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <!-- Trip Cost & Fuel Estimate -->
+    <div class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500">Trip Cost &amp; Fuel Estimate</p>
+        <span class="text-[10px] font-mono2 text-slate-600">FROM PROFILE ABOVE</span>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
           <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Engine Run Time</p>
           <p id="costEngineTime" class="font-orbitron text-lg text-slate-100">—</p>
@@ -351,23 +403,38 @@
         <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
           <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fuel Burned</p>
           <p id="costFuelTotal" class="font-orbitron text-lg text-slate-100">—</p>
-          <p class="text-[11px] text-slate-500 font-mono2"><span id="costFuelTotalUnit">gal</span> total</p>
+          <p class="text-[11px] text-slate-500 font-mono2"><span id="costFuelTotalUnit">gal</span> total, 1st-hr + cruise split</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fixed Cost</p>
+          <p id="costFixedTotal" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2">fixed $/hr × engine time</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Variable Cost</p>
+          <p id="costVariableTotal" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2">variable $/hr × engine time</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">MSP / Engine Reserve</p>
+          <p id="costMspTotal" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2">reserve $/hr × engine time</p>
+        </div>
+        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
+          <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Maintenance Reserve</p>
+          <p id="costMaintTotal" class="font-orbitron text-lg text-slate-100">—</p>
+          <p class="text-[11px] text-slate-500 font-mono2">reserve $/hr × engine time</p>
         </div>
         <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
           <p id="costFuelCostLabel" class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Fuel Cost</p>
           <p id="costFuelCost" class="font-orbitron text-lg text-slate-100">—</p>
           <p id="costFuelCostNote" class="text-[11px] text-slate-500 font-mono2">at entered price</p>
         </div>
-        <div class="result-card panel border border-slate-800 rounded-xl p-3.5">
-          <p id="costNonFuelLabel" class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Non-Fuel Cost</p>
-          <p id="costNonFuel" class="font-orbitron text-lg text-slate-100">—</p>
-          <p id="costNonFuelNote" class="text-[11px] text-slate-500 font-mono2">fixed rate × engine time</p>
-        </div>
-        <div class="result-card col-span-2 lg:col-span-1 panel border-2 border-emerald-500/50 rounded-xl p-3.5 relative overflow-hidden">
+        <div class="result-card panel border-2 border-emerald-500/50 rounded-xl p-3.5 relative overflow-hidden">
           <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none"></div>
           <p class="text-[10px] uppercase tracking-widest text-emerald-500/80 mb-1 relative">Total Est. Trip Cost</p>
           <p id="costTotal" class="font-orbitron text-lg text-emerald-300 relative">—</p>
-          <p id="costTotalNote" class="text-[11px] text-slate-500 font-mono2 relative">enter rates above</p>
+          <p id="costTotalNote" class="text-[11px] text-slate-500 font-mono2 relative">all categories + fuel</p>
         </div>
       </div>
     </div>
@@ -380,6 +447,32 @@
       </div>
       <div id="alternatesGrid" class="grid sm:grid-cols-3 gap-3"></div>
     </div>
+
+    </div><!-- /tabFlightPlan -->
+
+    <div id="tabCompare" class="hidden space-y-5">
+      <div class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-[11px] uppercase tracking-widest text-slate-500">Fleet Comparison — Time &amp; Cost for This Route</p>
+          <span class="text-[10px] font-mono2 text-slate-600">CLICK A ROW TO SWITCH</span>
+        </div>
+        <p class="text-[11px] text-slate-500 mb-3">Every aircraft's own cost profile (edited or default) is used — switch to the Flight Plan tab to edit any aircraft's numbers.</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs min-w-[520px]">
+            <thead>
+              <tr class="text-slate-500 text-left border-b border-slate-800">
+                <th class="py-1.5 font-normal">Aircraft</th>
+                <th class="py-1.5 font-normal">Cruise</th>
+                <th class="py-1.5 font-normal text-right">Engine Time</th>
+                <th class="py-1.5 font-normal text-right">Fuel</th>
+                <th class="py-1.5 font-normal text-right">Total Est. Cost</th>
+              </tr>
+            </thead>
+            <tbody id="fleetCompareBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /tabCompare -->
 
   </div>
   <div id="printSummary" class="hidden print:block bg-white text-slate-900 p-2"></div>
@@ -403,12 +496,14 @@
       <li><span class="text-slate-300">Data source:</span> the app attempts a live <code class="text-cyan-300">fetch()</code> against a public-domain, open-source North America airport dataset. If the request fails, times out, or is blocked by network policy, it seamlessly loads an embedded offline dataset covering major hubs and representative regional fields.</li>
       <li><span class="text-slate-300">Significant-field filter:</span> records are limited to United States and Canada, then narrowed to fields carrying a genuine 4-letter ICAO identifier (K.../P... for the US, C... for Canada) — this includes every towered, reliever, and municipal/GA airport with a real designator, while excluding private ranch strips, orchard strips, and ag airfields that only carry a local FAA-style location ID.</li>
       <li><span class="text-slate-300">Runway data:</span> published longest-runway figures are applied where known; any field without a confirmed value uses a conservative 5,000 ft baseline estimate.</li>
-      <li><span class="text-slate-300">Fleet speeds:</span> Single/Twin Piston, Midsize Jet, and Heavy Jet use a representative cruise TAS for aircraft typically flown in that class. <strong class="text-amber-300">Light Jet is different:</strong> its speed (389 kt), all-in rate ($4,472.66/hr), and fuel burn (234 gal/hr) are derived from the operator's own YTD logged flight data rather than an assumed constant.</li>
-      <li><span class="text-slate-300">Runway minimums:</span> Light/Midsize/Heavy Jet categories each carry their own reference minimum runway length (4,000 / 5,000 / 6,000 ft) used to trigger the runway advisory.</li>
-      <li><span class="text-slate-300">Wind correction:</span> when enabled, each leg samples forecast wind speed/direction at a representative cruise pressure-altitude for the <em>active</em> aircraft's category (e.g. 200 hPa / ~FL390 for Light Jet, 700 hPa / ~10,000 ft for Single Piston) at the leg's midpoint, then applies the standard wind-triangle correction (headwind/tailwind component + crosswind-driven correction angle) to true airspeed. If the live forecast is unreachable, a labeled climatological average (prevailing westerly flow aloft) is used instead so the estimate degrades gracefully rather than failing outright. This is a single-sample-per-leg simplification, not a full route-integrated wind model — treat the result as directionally correct (a genuine tailwind/headwind swap between reversed routes, matching real jet-stream behavior), not accurate to the knot.</li>
-      <li><span class="text-slate-300">Multi-stop &amp; round trip:</span> each leg — including mirrored return legs — is computed independently, then summed into trip totals. Taxi-out/taxi-in allowances in the cost calculator apply <strong class="text-slate-300">per leg</strong>, not once for the whole itinerary. The runway advisory and shortest-runway stat check every stop the itinerary actually lands at.</li>
+      <li><span class="text-slate-300">Aircraft database:</span> 21 entries — your own aircraft (speed, all-in rate, and fuel burn from YTD logged data) plus 20 specific researched types spanning single piston through ultra-long-range heavy jet. Search by manufacturer or model above the route builder.</li>
+      <li><span class="text-slate-300">Cost breakdown categories:</span> follows standard business-aviation cost taxonomy. <strong class="text-slate-300">Fixed</strong> = crew salary/training, hangar, insurance (accrues whether you fly or not). <strong class="text-slate-300">Variable</strong> = crew travel, catering, airport/landing fees (scales with trips). <strong class="text-slate-300">MSP / Engine Reserve</strong> = hourly engine + APU overhaul funding, the kind of rate programs like JSSI or manufacturer MSPs actually charge. <strong class="text-slate-300">Maintenance Reserve</strong> = airframe scheduled/unscheduled upkeep. Defaults are seeded from real cost-model and POH data per aircraft, but every field is editable and persists per aircraft.</li>
+      <li><span class="text-slate-300">Data corrections:</span> four of the largest jets (G450, G500, Global 5000, G650ER) in the researched dataset had an identical placeholder fuel-burn figure in the source cost model; each was corrected to a published manufacturer/Conklin &amp; de Decker-sourced rate instead (flagged with a note when that aircraft is selected).</li>
+      <li><span class="text-slate-300">1st-hour vs. cruise fuel burn:</span> climb and early cruise burn measurably more fuel per hour than steady cruise. Each leg's first flight-hour uses the "1st Hour" rate; anything beyond that uses the "Subsequent" cruise rate. Defaults are estimated with a category-based climb multiplier (not certified POH climb-fuel data) — edit either field directly if you have better numbers.</li>
+      <li><span class="text-slate-300">Runway minimums:</span> each jet aircraft carries its own reference minimum runway length used to trigger the runway advisory; turboprops and pistons are not runway-gated.</li>
+      <li><span class="text-slate-300">Wind correction:</span> when enabled, each leg samples forecast wind speed/direction at the pressure level closest to the <em>active</em> aircraft's average cruise altitude (editable in the Aircraft Cost &amp; Performance Profile) at the leg's midpoint, then applies the standard wind-triangle correction (headwind/tailwind component + crosswind-driven correction angle) to true airspeed. If the live forecast is unreachable, a labeled climatological average (prevailing westerly flow aloft) is used instead so the estimate degrades gracefully rather than failing outright. This is a single-sample-per-leg simplification, not a full route-integrated wind model — treat the result as directionally correct, not accurate to the knot.</li>
+      <li><span class="text-slate-300">Multi-stop &amp; round trip:</span> each leg — including mirrored return legs — is computed independently, then summed into trip totals. Taxi-out/taxi-in allowances apply <strong class="text-slate-300">per leg</strong>, not once for the whole itinerary. The runway advisory and shortest-runway stat check every stop the itinerary actually lands at.</li>
       <li><span class="text-slate-300">Route map:</span> renders the true great-circle path over a live dark basemap (CARTO). Requires an internet connection to load map tiles.</li>
-      <li><span class="text-slate-300">Cost &amp; fuel estimator:</span> entirely user-supplied figures. The fuel-burn field is seeded with a rough per-category starting point only — replace it with your aircraft's actual POH/operating data for a trustworthy trip cost.</li>
       <li><span class="text-slate-300">Publish Itinerary (PDF):</span> renders a clean, printer-friendly summary of the currently computed itinerary — route, stats, leg-by-leg breakdown, fleet comparison, cost estimate, and alternates — and opens your browser's print dialog. Choose "Save as PDF" (or "Microsoft Print to PDF" on Windows, "Save to Files" on iOS) as the destination to export it. This uses the browser's native print engine rather than an external PDF library, so it works fully offline.</li>
     </ul>
   </div>
@@ -432,22 +527,129 @@
 
   var WIND_API_URL = 'https://api.open-meteo.com/v1/forecast';
   var WIND_FETCH_TIMEOUT_MS = 8000;
-  // Representative cruise pressure-altitude per category, used to sample forecast winds aloft.
-  var WIND_PRESSURE_BY_PROFILE = { single: '700hPa', twin: '500hPa', light: '200hPa', mid: '200hPa', heavy: '150hPa' };
+  // Standard-atmosphere altitude (ft) for each Open-Meteo pressure level we sample.
+  // Each aircraft's cruiseAltFt is matched to whichever of these is closest, so wind
+  // correction generalizes to any aircraft's real cruise altitude instead of 5 fixed tiers.
   var WIND_UNIQUE_LEVELS = ['700hPa', '500hPa', '200hPa', '150hPa'];
+  var PRESSURE_LEVEL_ALT_FT = { '700hPa': 9882, '500hPa': 18289, '200hPa': 38662, '150hPa': 44647 };
+  function nearestPressureLevel(altFt) {
+    var best = WIND_UNIQUE_LEVELS[0], bestDiff = Infinity;
+    WIND_UNIQUE_LEVELS.forEach(function (lvl) {
+      var diff = Math.abs(PRESSURE_LEVEL_ALT_FT[lvl] - altFt);
+      if (diff < bestDiff) { bestDiff = diff; best = lvl; }
+    });
+    return best;
+  }
   // Climatological fallback: prevailing westerly flow aloft over North America, roughly scaled
   // by altitude (jet-stream-region winds are far stronger at jet cruise levels than down low).
   var CLIMATOLOGICAL_WIND_DIR = 270;
   var CLIMATOLOGICAL_SPEED_BY_LEVEL = { '700hPa': 15, '500hPa': 25, '200hPa': 58, '150hPa': 65 };
 
-  var AIRCRAFT_PROFILES = {
-    single: { key: 'single', label: 'Single Piston', sub: 'e.g. C172 / PA-28 class',        speed: 140, accent: 'emerald', isJet: false, minRunway: null, fuelDefault: 12,  rateDefault: null, speedIncludesGround: false },
-    twin:   { key: 'twin',   label: 'Twin Piston',   sub: 'e.g. BE58 / PA-34 class',        speed: 210, accent: 'sky',     isJet: false, minRunway: null, fuelDefault: 28,  rateDefault: null, speedIncludesGround: false },
-    light:  { key: 'light',  label: 'Light Jet',     sub: 'logged average — your aircraft', speed: 389, accent: 'amber',   isJet: true,  minRunway: 4000, fuelDefault: 234, rateDefault: 4472.66, speedIncludesGround: true },
-    mid:    { key: 'mid',    label: 'Midsize Jet',   sub: 'e.g. XLS+ / Hawker / Latitude',  speed: 450, accent: 'violet',  isJet: true,  minRunway: 5000, fuelDefault: 220, rateDefault: null, speedIncludesGround: false },
-    heavy:  { key: 'heavy',  label: 'Heavy Jet',     sub: 'e.g. G550 / Global / Falcon 7X', speed: 490, accent: 'rose',    isJet: true,  minRunway: 6000, fuelDefault: 350, rateDefault: null, speedIncludesGround: false }
-  };
-  var PROFILE_ORDER = ['single', 'twin', 'light', 'mid', 'heavy'];
+  var CAT_ACCENT = { single: 'emerald', twin: 'sky', light: 'amber', mid: 'violet', heavy: 'rose' };
+  // Researched from real POH/manufacturer specs + the operator's own cost model.
+  // fixedHr/variableHr/mspHr/maintHr categories mirror standard business-aviation
+  // cost taxonomy (Conklin & de Decker style): Fixed = crew salary/training/hangar/
+  // insurance; Variable = per-trip crew travel/catering/airport fees; MSP/Engine
+  // Reserve = hourly engine overhaul funding (what programs like JSSI/CorporateCare
+  // actually charge for); Maintenance Reserve = airframe scheduled/unscheduled upkeep.
+  // fuelBurn1st/fuelBurnCruise split reflects that climb + early cruise burns more
+  // fuel per hour than steady cruise — seeded from a category climb multiplier
+  // (documented in the info modal), fully editable per aircraft.
+  var AIRCRAFT_DB = [
+    { id:'youraircraft', mfr:'', model:'Light Jet — Your Aircraft (Logged)', cat:'light', seats:8, speed:389, isJet:true, minRunway:4000,
+      engineType:'(your aircraft — unspecified)', engineCount:2, cruiseAltFt:39000, maxAltFt:41000,
+      fixedHr:4472.66, variableHr:0, mspHr:0, maintHr:0, fuelBurn1st:234, fuelBurnCruise:234, fuelPrice:0,
+      speedIncludesGround:true, note:'All-in $/hr and fuel burn from your YTD logged data. Not itemized — it\u2019s a blended real rate, not a category breakdown. Adjust categories below if you want to split it out.' },
+    { id:'c172sp', mfr:'Cessna', model:'172SP', cat:'single', seats:3, speed:115, isJet:false, minRunway:1600,
+      engineType:'Lycoming IO-360-L2A (piston)', engineCount:1, cruiseAltFt:8000, maxAltFt:14000,
+      fixedHr:477, variableHr:5, mspHr:35, maintHr:42, fuelBurn1st:13, fuelBurnCruise:11, fuelPrice:5.25, note:null },
+    { id:'cheyenne2xl', mfr:'Piper', model:'Cheyenne II XL', cat:'twin', seats:6, speed:275, isJet:false, minRunway:4400,
+      engineType:'Pratt & Whitney Canada PT6A-135 (turboprop)', engineCount:2, cruiseAltFt:25000, maxAltFt:31000,
+      fixedHr:463, variableHr:170, mspHr:500, maintHr:1200, fuelBurn1st:64, fuelBurnCruise:53, fuelPrice:5.25, note:null },
+    { id:'da62', mfr:'Diamond', model:'DA62', cat:'twin', seats:5, speed:185, isJet:false, minRunway:2900,
+      engineType:'Austro AE330 (turbo-diesel)', engineCount:2, cruiseAltFt:12000, maxAltFt:20000,
+      fixedHr:483, variableHr:170, mspHr:80, maintHr:100, fuelBurn1st:23, fuelBurnCruise:19, fuelPrice:5.25, note:null },
+    { id:'e90', mfr:'Beechcraft', model:'King Air E90', cat:'twin', seats:6, speed:235, isJet:false, minRunway:3300,
+      engineType:'Pratt & Whitney Canada PT6A-28 (turboprop)', engineCount:2, cruiseAltFt:25000, maxAltFt:28000,
+      fixedHr:467, variableHr:170, mspHr:450, maintHr:450, fuelBurn1st:101, fuelBurnCruise:84, fuelPrice:5.25, note:null },
+    { id:'mustang', mfr:'Cessna', model:'Citation Mustang', cat:'light', seats:4, speed:340, isJet:true, minRunway:3900,
+      engineType:'Pratt & Whitney Canada PW615F (turbofan)', engineCount:2, cruiseAltFt:39000, maxAltFt:41000,
+      fixedHr:395, variableHr:170, mspHr:450, maintHr:500, fuelBurn1st:109, fuelBurnCruise:84, fuelPrice:5.25, note:null },
+    { id:'citation3', mfr:'Cessna', model:'Citation III', cat:'mid', seats:6, speed:430, isJet:true, minRunway:4700,
+      engineType:'Honeywell TFE731-3B-100S (turbofan)', engineCount:2, cruiseAltFt:43000, maxAltFt:45000,
+      fixedHr:850, variableHr:240, mspHr:600, maintHr:1000, fuelBurn1st:355, fuelBurnCruise:263, fuelPrice:5.25, note:null },
+    { id:'cj3', mfr:'Cessna', model:'CJ3', cat:'light', seats:6, speed:415, isJet:true, minRunway:3200,
+      engineType:'Williams International FJ44-3A (turbofan)', engineCount:2, cruiseAltFt:41000, maxAltFt:45000,
+      fixedHr:900, variableHr:240, mspHr:350, maintHr:570, fuelBurn1st:191, fuelBurnCruise:147, fuelPrice:5.25, note:null },
+    { id:'lj40xr', mfr:'Learjet', model:'40XR', cat:'light', seats:6, speed:436, isJet:true, minRunway:4500,
+      engineType:'Honeywell TFE731-20BR (turbofan)', engineCount:2, cruiseAltFt:45000, maxAltFt:51000,
+      fixedHr:1215, variableHr:240, mspHr:1200, maintHr:1600, fuelBurn1st:283, fuelBurnCruise:218, fuelPrice:5.25, note:null },
+    { id:'g150', mfr:'Gulfstream', model:'G150', cat:'light', seats:7, speed:460, isJet:true, minRunway:4800,
+      engineType:'Honeywell TFE731-40AR-200G (turbofan)', engineCount:2, cruiseAltFt:43000, maxAltFt:45000,
+      fixedHr:1302, variableHr:240, mspHr:700, maintHr:1100, fuelBurn1st:283, fuelBurnCruise:218, fuelPrice:5.25, note:null },
+    { id:'g200', mfr:'Gulfstream', model:'G200', cat:'mid', seats:9, speed:460, isJet:true, minRunway:5000,
+      engineType:'Pratt & Whitney Canada PW306A (turbofan)', engineCount:2, cruiseAltFt:43000, maxAltFt:45000,
+      fixedHr:1302, variableHr:240, mspHr:850, maintHr:1600, fuelBurn1st:409, fuelBurnCruise:303, fuelPrice:5.25, note:null },
+    { id:'challenger300', mfr:'Bombardier', model:'Challenger 300', cat:'mid', seats:8, speed:460, isJet:true, minRunway:4800,
+      engineType:'Honeywell HTF7000 (turbofan)', engineCount:2, cruiseAltFt:41000, maxAltFt:45000,
+      fixedHr:1302, variableHr:250, mspHr:1000, maintHr:1350, fuelBurn1st:390, fuelBurnCruise:289, fuelPrice:5.25, note:null },
+    { id:'falcon2000', mfr:'Dassault', model:'Falcon 2000', cat:'mid', seats:10, speed:460, isJet:true, minRunway:5300,
+      engineType:'CFE CFE738-1-1B (turbofan)', engineCount:2, cruiseAltFt:43000, maxAltFt:47000,
+      fixedHr:1396, variableHr:240, mspHr:2100, maintHr:1500, fuelBurn1st:373, fuelBurnCruise:276, fuelPrice:5.25, note:null },
+    { id:'falcon2000ex', mfr:'Dassault', model:'Falcon 2000EX', cat:'mid', seats:10, speed:460, isJet:true, minRunway:5300,
+      engineType:'Pratt & Whitney Canada PW308C (turbofan)', engineCount:2, cruiseAltFt:43000, maxAltFt:47000,
+      fixedHr:1472, variableHr:240, mspHr:1100, maintHr:1500, fuelBurn1st:373, fuelBurnCruise:276, fuelPrice:5.25, note:null },
+    { id:'challenger604', mfr:'Bombardier', model:'Challenger 604', cat:'heavy', seats:10, speed:460, isJet:true, minRunway:5500,
+      engineType:'General Electric CF34-3B (turbofan)', engineCount:2, cruiseAltFt:41000, maxAltFt:41000,
+      fixedHr:1434, variableHr:250, mspHr:730, maintHr:1400, fuelBurn1st:486, fuelBurnCruise:347, fuelPrice:5.25, note:null },
+    { id:'falcon900ex', mfr:'Dassault', model:'Falcon 900EX', cat:'heavy', seats:14, speed:460, isJet:true, minRunway:5250,
+      engineType:'Honeywell TFE731-60 (turbofan) \u00d7 3', engineCount:3, cruiseAltFt:45000, maxAltFt:51000,
+      fixedHr:2604, variableHr:520, mspHr:1050, maintHr:1600, fuelBurn1st:395, fuelBurnCruise:282, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~282 gal/hr (POH-sourced) \u2014 source model had 303 gal/hr.' },
+    { id:'falcon900lx', mfr:'Dassault', model:'Falcon 900LX', cat:'heavy', seats:14, speed:460, isJet:true, minRunway:5250,
+      engineType:'Honeywell TFE731-60 (turbofan) \u00d7 3', engineCount:3, cruiseAltFt:45000, maxAltFt:51000,
+      fixedHr:2981, variableHr:520, mspHr:1050, maintHr:1600, fuelBurn1st:406, fuelBurnCruise:290, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~290 gal/hr \u2014 source model had 482 gal/hr, a clear outlier vs. the closely related 900EX (~282-303 gal/hr).' },
+    { id:'g450', mfr:'Gulfstream', model:'G450', cat:'heavy', seats:14, speed:475, isJet:true, minRunway:5450,
+      engineType:'Rolls-Royce Tay 611-8C (turbofan)', engineCount:2, cruiseAltFt:41000, maxAltFt:45000,
+      fixedHr:2821, variableHr:540, mspHr:1170, maintHr:1552, fuelBurn1st:626, fuelBurnCruise:447, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~447 gal/hr (Conklin & de Decker figure) \u2014 source model had 263 gal/hr, an apparent placeholder shared identically across four different aircraft.' },
+    { id:'g500', mfr:'Gulfstream', model:'G500', cat:'heavy', seats:14, speed:515, isJet:true, minRunway:5300,
+      engineType:'Pratt & Whitney Canada PW814GA (turbofan)', engineCount:2, cruiseAltFt:45000, maxAltFt:51000,
+      fixedHr:3585, variableHr:545, mspHr:1378, maintHr:1820, fuelBurn1st:508, fuelBurnCruise:363, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~363 gal/hr (Gulfstream-published figure) \u2014 source model had the same 263 gal/hr placeholder.' },
+    { id:'global5000', mfr:'Bombardier', model:'Global 5000', cat:'heavy', seats:13, speed:488, isJet:true, minRunway:5500,
+      engineType:'Rolls-Royce BR710-A2-20 (turbofan)', engineCount:2, cruiseAltFt:45000, maxAltFt:51000,
+      fixedHr:3396, variableHr:550, mspHr:1781, maintHr:2380, fuelBurn1st:637, fuelBurnCruise:455, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~455 gal/hr (AvBuyer-published figure) \u2014 source model had the same 263 gal/hr placeholder.' },
+    { id:'g650er', mfr:'Gulfstream', model:'G650ER', cat:'heavy', seats:18, speed:515, isJet:true, minRunway:6300,
+      engineType:'Rolls-Royce BR725A1-12 (turbofan)', engineCount:2, cruiseAltFt:47000, maxAltFt:51000,
+      fixedHr:3868, variableHr:560, mspHr:1500, maintHr:2200, fuelBurn1st:581, fuelBurnCruise:415, fuelPrice:5.25,
+      note:'Fuel burn corrected to ~415 gal/hr (Jetcraft-published figure) \u2014 source model had the same 263 gal/hr placeholder.' }
+  ];
+  var AIRCRAFT_ORDER = AIRCRAFT_DB.map(function (a) { return a.id; });
+
+  function aircraftLabel(a) {
+    return (a.mfr ? a.mfr + ' ' : '') + a.model;
+  }
+
+  function buildAircraftProfiles() {
+    var out = {};
+    AIRCRAFT_DB.forEach(function (a) {
+      out[a.id] = {
+        key: a.id, label: aircraftLabel(a), sub: a.engineType, speed: a.speed, isJet: a.isJet,
+        minRunway: a.isJet ? a.minRunway : null, accent: CAT_ACCENT[a.cat] || 'sky',
+        speedIncludesGround: !!a.speedIncludesGround,
+        cat: a.cat, seats: a.seats, engineType: a.engineType, engineCount: a.engineCount,
+        cruiseAltFt: a.cruiseAltFt, maxAltFt: a.maxAltFt, note: a.note,
+        fixedHrDefault: a.fixedHr, variableHrDefault: a.variableHr, mspHrDefault: a.mspHr, maintHrDefault: a.maintHr,
+        fuelBurn1stDefault: a.fuelBurn1st, fuelBurnCruiseDefault: a.fuelBurnCruise, fuelPriceDefault: a.fuelPrice
+      };
+    });
+    return out;
+  }
+  var AIRCRAFT_PROFILES = buildAircraftProfiles();
+  var PROFILE_ORDER = AIRCRAFT_ORDER;
 
   // Known published longest-runway lengths (ft). Anything not listed here
   // defaults to DEFAULT_RUNWAY, matching the "safe baseline estimate"
@@ -594,7 +796,7 @@
   var dataSource = 'pending'; // 'live' | 'fallback'
   var waypoints = [ { airport: null }, { airport: null } ]; // index 0 = origin, last = destination
   var roundTrip = false;
-  var activeProfile = 'light';
+  var activeProfile = 'youraircraft';
   var lastItinerary = null;
   var dropdownItems = {};   // keyed by waypoint index
   var highlightIndex = {};  // keyed by waypoint index
@@ -603,7 +805,12 @@
   var routeMap = null, outboundLine = null, returnLine = null;
   var waypointMarkers = {}; // icao -> L.circleMarker
 
-  var costState = { mode: 'allin', fixedRate: 0, fuelBurn: 0, fuelUnit: 'gal', fuelPrice: 0, taxiOut: 10, taxiIn: 5 };
+  // Cost/performance fields are editable per aircraft; each aircraft's edits persist
+  // independently, seeded from AIRCRAFT_PROFILES defaults the first time it's selected.
+  var aircraftOverrides = {};   // keyed by aircraft id -> {fixedHr,variableHr,mspHr,maintHr,engineType,engineCount,cruiseAltFt,fuel1st,fuelCruise,fuelUnit,fuelPrice,taxiOut,taxiIn}
+  var aircraftDropdownOpen = false;
+  var aircraftHighlightIndex = -1;
+  var aircraftDropdownMatches = [];
 
   var windEnabled = false;
   var windSource = 'none';   // 'none' | 'loading' | 'live' | 'climatological'
@@ -618,15 +825,17 @@
   function cacheEls() {
     ['waypointList','addStopBtn','reverseRouteBtn','maxStopsNote','roundTripToggle',
      'statusDot','statusText','statusDotM','statusTextM',
-     'profileButtons','promptState','resultsSection','safetyBanner','safetyBannerText',
+     'aircraftSearchInput','aircraftDropdown','aircraftSummary',
+     'promptState','resultsSection','safetyBanner','safetyBannerText',
      'statNM','statSM','statLegs','statLegsSub','statETE','statETEProfile','statRunway','statRunwayIcao',
-     'legBreakdown','legCountBadge','profileGrid','alternatesGrid',
+     'legBreakdown','legCountBadge','fleetCompareBody','alternatesGrid','tabSwitcher','tabFlightPlan','tabCompare',
      'infoBtn','infoModal','infoClose','footerDataNote','routeMapContainer','mapFallback','returnLegendItem',
-     'costFixedRate','costFuelBurn','costFuelPrice','costTaxiOut','costTaxiIn',
-     'fuelUnitToggle','fuelPriceLabel','useTypicalBurn','costEngineTime','costEngineNote','costFuelTotal',
-     'costFuelTotalUnit','costFuelCost','costNonFuel','costTotal','costTotalNote',
-     'costModeToggle','costFixedRateLabel','costFuelCostLabel','costFuelCostNote',
-     'costNonFuelLabel','costNonFuelNote','taxiHint',
+     'resetAircraftDefaults','aircraftDataNote',
+     'acFixed','acVariable','acMsp','acMaint','acEngineType','acEngineCount','acCruiseAlt','acFuelPerEngine',
+     'acFuel1st','acFuelCruise','costFuelPrice','costTaxiOut','costTaxiIn',
+     'fuelUnitToggle','fuelPriceLabel','costEngineTime','costEngineNote','costFuelTotal',
+     'costFuelTotalUnit','costFuelCost','costFuelCostLabel','costFuelCostNote',
+     'costFixedTotal','costVariableTotal','costMspTotal','costMaintTotal','costTotal','costTotalNote','taxiHint',
      'windToggle','windStatusPill','windStatusDot','windStatusText','windRefreshBtn','windCaption',
      'publishBtn','printSummary'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
@@ -881,7 +1090,7 @@
   // which itself costs a small amount of the along-track speed (TAS*cos(WCA)).
   function windAdjustedForLeg(leg, windEntry, profileKey) {
     var profile = AIRCRAFT_PROFILES[profileKey];
-    var lvl = WIND_PRESSURE_BY_PROFILE[profileKey];
+    var lvl = nearestPressureLevel(profile.cruiseAltFt);
     var w = windEntry ? windEntry[lvl] : null;
     if (!w) return null;
     var phi = toRad((((w.dir + 180) - leg.course) % 360 + 360) % 360);
@@ -1293,7 +1502,7 @@
 
     renderSafetyBanner();
     renderLegBreakdown();
-    renderProfileGrid();
+    renderFleetCompareTable();
     renderAlternates();
     renderRouteMap();
     renderWindStatus();
@@ -1382,24 +1591,30 @@
     });
     html += '</tbody></table>';
 
+    var o = aircraftOverrides[activeProfile];
     var flightHrs = totalEffectiveEteHrs(activeProfile);
     var legCount = it.legs.length;
-    var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
+    var taxiHrsTotal = ((o.taxiOut + o.taxiIn) / 60) * legCount;
     var engineHrs = flightHrs + taxiHrsTotal;
-    var fuelTotal = costState.fuelBurn * engineHrs;
-    var fuelCostRef = fuelTotal * costState.fuelPrice;
-    var rateCost = costState.fixedRate * engineHrs;
-    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
+    var fuelTotal = 0;
+    for (var fi = 0; fi < it.legs.length; fi++) { fuelTotal += legFuelGallons(legEffectiveEteHrs(fi, activeProfile), o.fuel1st, o.fuelCruise); }
+    var fuelCostRef = fuelTotal * o.fuelPrice;
+    var fixedCostP = o.fixedHr * engineHrs, variableCostP = o.variableHr * engineHrs;
+    var mspCostP = o.mspHr * engineHrs, maintCostP = o.maintHr * engineHrs;
+    var totalCost = fixedCostP + variableCostP + mspCostP + maintCostP + fuelCostRef;
 
-    html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Cost &amp; Fuel Estimate</h2>';
+    html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Aircraft &amp; Cost Breakdown</h2>';
     html += '<table><tbody>' +
-      '<tr><td class="font-medium" style="background:#f8fafc;width:33%">Rate Mode</td><td>' + (costState.mode === 'allin' ? 'All-In $/hr' : 'Itemized') + '</td></tr>' +
-      (costState.fixedRate ? '<tr><td class="font-medium" style="background:#f8fafc">' + (costState.mode === 'allin' ? 'All-In Rate' : 'Fixed Rate (non-fuel)') + '</td><td>$' + fmtNum(costState.fixedRate, 2) + '/hr</td></tr>' : '') +
-      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Burn Rate</td><td>' + fmtNum(costState.fuelBurn, 1) + ' ' + costState.fuelUnit + '/hr</td></tr>' +
-      (costState.fuelPrice ? '<tr><td class="font-medium" style="background:#f8fafc">Fuel Price</td><td>$' + fmtNum(costState.fuelPrice, 2) + '/' + costState.fuelUnit + '</td></tr>' : '') +
-      '<tr><td class="font-medium" style="background:#f8fafc">Taxi Allowance</td><td>' + costState.taxiOut + ' min out / ' + costState.taxiIn + ' min in, per leg (' + legCount + ' legs)</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc;width:33%">Engine / Powerplant</td><td>' + escapeHtml(o.engineType) + ' \u00d7 ' + o.engineCount + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Avg. Cruise Altitude</td><td>' + o.cruiseAltFt.toLocaleString() + ' ft</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Burn (1st hr / subsequent)</td><td>' + fmtNum(o.fuel1st,1) + ' / ' + fmtNum(o.fuelCruise,1) + ' ' + o.fuelUnit + '/hr (' + fmtNum(o.fuelCruise/o.engineCount,1) + ' ' + o.fuelUnit + '/hr per engine, cruise)</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Fixed Costs</td><td>$' + fmtNum(o.fixedHr,2) + '/hr \u2192 $' + fmtNum(fixedCostP,2) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Variable Costs</td><td>$' + fmtNum(o.variableHr,2) + '/hr \u2192 $' + fmtNum(variableCostP,2) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">MSP / Engine Reserve</td><td>$' + fmtNum(o.mspHr,2) + '/hr \u2192 $' + fmtNum(mspCostP,2) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Maintenance Reserve</td><td>$' + fmtNum(o.maintHr,2) + '/hr \u2192 $' + fmtNum(maintCostP,2) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Cost</td><td>' + fmtNum(fuelTotal,1) + ' ' + o.fuelUnit + ' @ $' + fmtNum(o.fuelPrice,2) + ' \u2192 $' + fmtNum(fuelCostRef,2) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Taxi Allowance</td><td>' + o.taxiOut + ' min out / ' + o.taxiIn + ' min in, per leg (' + legCount + ' legs)</td></tr>' +
       '<tr><td class="font-medium" style="background:#f8fafc">Engine Run Time</td><td>' + formatETE(engineHrs) + '</td></tr>' +
-      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Burned</td><td>' + fmtNum(fuelTotal, 1) + ' ' + costState.fuelUnit + '</td></tr>' +
       '<tr><td class="font-medium" style="background:#f8fafc;font-weight:700">Total Estimated Trip Cost</td><td style="font-weight:700">$' + fmtNum(totalCost, 2) + '</td></tr>' +
     '</tbody></table>';
 
@@ -1496,24 +1711,56 @@
     el.legCountBadge.textContent = lastItinerary.legs.length + (lastItinerary.legs.length === 1 ? ' LEG' : ' LEGS');
   }
 
-  function renderProfileGrid() {
-    var html = PROFILE_ORDER.map(function (key) {
+  function renderFleetCompareTable() {
+    if (!lastItinerary) return;
+    var rows = AIRCRAFT_ORDER.map(function (key) {
       var p = AIRCRAFT_PROFILES[key];
-      var active = key === activeProfile;
-      var eteHrs = totalEffectiveEteHrs(key);
-      var ring = active ? 'border-cyan-400/70 bg-cyan-500/5' : 'border-slate-800';
+      var r = computeTripCostFor(key);
+      return { key: key, label: p.label, speed: p.speed, r: r };
+    });
+    var active = activeProfile;
+    var html = rows.map(function (row) {
+      var isActive = row.key === active;
+      var cls = 'border-b border-slate-800/60 cursor-pointer hover:bg-slate-800/40' + (isActive ? ' bg-cyan-500/5' : '');
+      var textCls = isActive ? 'text-cyan-300' : 'text-slate-300';
       return (
-        '<div class="result-card border ' + ring + ' rounded-xl p-3.5">' +
-          '<div class="flex items-center justify-between mb-1.5">' +
-            '<p class="text-xs font-medium ' + (active ? 'text-cyan-300' : 'text-slate-300') + '">' + p.label + '</p>' +
-            (active ? '<span class="text-[9px] uppercase tracking-widest text-cyan-400 font-mono2">Active</span>' : '') +
-          '</div>' +
-          '<p class="font-orbitron text-lg text-slate-100">' + formatETE(eteHrs) + '</p>' +
-          '<p class="text-[11px] text-slate-500 font-mono2">' + p.speed + ' KTAS cruise</p>' +
-        '</div>'
+        '<tr class="' + cls + '" data-aircraft-id="' + row.key + '">' +
+          '<td class="py-1.5 ' + textCls + '">' + row.label + (isActive ? ' <span class="text-[9px] uppercase tracking-widest text-cyan-400 font-mono2">ACTIVE</span>' : '') + '</td>' +
+          '<td class="py-1.5 text-slate-500 font-mono2">' + row.speed + ' kt</td>' +
+          '<td class="py-1.5 text-right font-mono2 ' + textCls + '">' + formatETE(row.r.engineHrs) + '</td>' +
+          '<td class="py-1.5 text-right font-mono2 text-slate-400">' + fmtNum(row.r.fuelTotal, 0) + ' ' + row.r.fuelUnit + '</td>' +
+          '<td class="py-1.5 text-right font-mono2 ' + (isActive ? 'text-emerald-300' : 'text-slate-300') + '">$' + fmtNum(row.r.totalCost, 0) + '</td>' +
+        '</tr>'
       );
     }).join('');
-    el.profileGrid.innerHTML = html;
+    el.fleetCompareBody.innerHTML = html;
+    Array.prototype.forEach.call(el.fleetCompareBody.querySelectorAll('[data-aircraft-id]'), function (row) {
+      row.addEventListener('click', function () {
+        selectAircraft(row.getAttribute('data-aircraft-id'));
+        setActiveTab('flightplan');
+      });
+    });
+  }
+
+  /* =========================================================
+     TABS — Flight Plan (single aircraft) vs. Fleet Comparison
+  ========================================================= */
+  var activeTab = 'flightplan';
+  function setActiveTab(tab) {
+    activeTab = tab;
+    el.tabFlightPlan.classList.toggle('hidden', tab !== 'flightplan');
+    el.tabCompare.classList.toggle('hidden', tab !== 'compare');
+    Array.prototype.forEach.call(el.tabSwitcher.querySelectorAll('.tab-btn'), function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+    });
+    if (tab === 'compare' && lastItinerary) renderFleetCompareTable();
+  }
+
+  function setupTabs() {
+    Array.prototype.forEach.call(el.tabSwitcher.querySelectorAll('.tab-btn'), function (btn) {
+      btn.addEventListener('click', function () { setActiveTab(btn.getAttribute('data-tab')); });
+    });
+    setActiveTab('flightplan');
   }
 
   function renderAlternates() {
@@ -1642,43 +1889,131 @@
   }
 
   /* =========================================================
-     PROFILE BUTTONS
+     AIRCRAFT SEARCH & SELECTION
   ========================================================= */
-  function buildProfileButtons() {
-    var accentMap = {
-      emerald: { border: 'border-emerald-400/70', bg: 'bg-emerald-500/10', text: 'text-emerald-300' },
-      sky:     { border: 'border-sky-400/70',     bg: 'bg-sky-500/10',     text: 'text-sky-300' },
-      amber:   { border: 'border-amber-400/70',   bg: 'bg-amber-500/10',   text: 'text-amber-300' },
-      violet:  { border: 'border-violet-400/70',  bg: 'bg-violet-500/10',  text: 'text-violet-300' },
-      rose:    { border: 'border-rose-400/70',    bg: 'bg-rose-500/10',    text: 'text-rose-300' }
-    };
-    var html = PROFILE_ORDER.map(function (key) {
-      var p = AIRCRAFT_PROFILES[key];
-      var a = accentMap[p.accent];
-      var isActive = key === activeProfile;
-      return (
-        '<button type="button" data-profile="' + key + '" class="profile-btn ' + (isActive ? 'active ' + a.border + ' ' + a.bg : 'border-slate-800 bg-slate-950/40') + ' border rounded-xl p-3.5 text-left">' +
-          '<div class="flex items-center justify-between mb-1">' +
-            '<span class="text-sm font-medium ' + (isActive ? a.text : 'text-slate-300') + '">' + p.label + '</span>' +
-            '<span class="font-mono2 text-xs ' + (isActive ? a.text : 'text-slate-500') + '">' + p.speed + ' KTAS</span>' +
-          '</div>' +
-          '<p class="text-[11px] text-slate-500">' + p.sub + '</p>' +
-        '</button>'
-      );
-    }).join('');
-    el.profileButtons.innerHTML = html;
+  var ACCENT_CLASSES = {
+    emerald: { border: 'border-emerald-400/70', bg: 'bg-emerald-500/10', text: 'text-emerald-300' },
+    sky:     { border: 'border-sky-400/70',     bg: 'bg-sky-500/10',     text: 'text-sky-300' },
+    amber:   { border: 'border-amber-400/70',   bg: 'bg-amber-500/10',   text: 'text-amber-300' },
+    violet:  { border: 'border-violet-400/70',  bg: 'bg-violet-500/10',  text: 'text-violet-300' },
+    rose:    { border: 'border-rose-400/70',    bg: 'bg-rose-500/10',    text: 'text-rose-300' }
+  };
+
+  function searchAircraftDb(query) {
+    var q = (query || '').trim().toLowerCase();
+    var list = AIRCRAFT_DB.slice();
+    if (!q) return list;
+    return list.filter(function (a) {
+      var hay = (aircraftLabel(a) + ' ' + a.cat + ' ' + a.engineType).toLowerCase();
+      return q.split(/\s+/).every(function (term) { return hay.indexOf(term) !== -1; });
+    });
   }
 
-  function setActiveProfile(key) {
-    if (!AIRCRAFT_PROFILES[key] || key === activeProfile) return;
-    activeProfile = key;
-    buildProfileButtons();
-    updateTypicalBurnButton();
+  function renderAircraftDropdown() {
+    var matches = aircraftDropdownMatches;
+    if (!matches.length) {
+      el.aircraftDropdown.innerHTML = '<p class="px-3.5 py-3 text-sm text-slate-500">No aircraft match that search.</p>';
+      el.aircraftDropdown.classList.remove('hidden');
+      return;
+    }
+    var html = matches.map(function (a, idx) {
+      var active = idx === aircraftHighlightIndex;
+      return '<button type="button" data-idx="' + idx + '" ' +
+        'class="ac-option w-full text-left px-3.5 py-2.5 flex items-center justify-between gap-3 border-b border-slate-800/60 last:border-b-0 transition ' +
+        (active ? 'bg-cyan-500/10' : 'hover:bg-slate-800/60') + '">' +
+          '<span class="min-w-0">' +
+            '<span class="block text-sm text-slate-100 truncate">' + escapeHtml(aircraftLabel(a)) + '</span>' +
+            '<span class="block text-[11px] text-slate-500 truncate">' + escapeHtml(a.engineType) + '</span>' +
+          '</span>' +
+          '<span class="shrink-0 text-[10px] font-mono2 text-slate-600 text-right">' + a.speed + ' kt<br>' + a.cat.toUpperCase() + '</span>' +
+        '</button>';
+    }).join('');
+    el.aircraftDropdown.innerHTML = html;
+    el.aircraftDropdown.classList.remove('hidden');
+    Array.prototype.forEach.call(el.aircraftDropdown.querySelectorAll('[data-idx]'), function (btn) {
+      btn.addEventListener('click', function () {
+        selectAircraft(aircraftDropdownMatches[parseInt(btn.getAttribute('data-idx'), 10)].id);
+      });
+    });
+  }
+
+  function hideAircraftDropdown() {
+    el.aircraftDropdown.classList.add('hidden');
+    aircraftDropdownOpen = false;
+    aircraftHighlightIndex = -1;
+  }
+
+  function showAircraftDropdown(query) {
+    aircraftDropdownMatches = searchAircraftDb(query);
+    aircraftDropdownOpen = true;
+    aircraftHighlightIndex = -1;
+    renderAircraftDropdown();
+  }
+
+  function renderAircraftSummary() {
+    seedAircraftOverride(activeProfile);
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    var a = ACCENT_CLASSES[p.accent] || ACCENT_CLASSES.sky;
+    var fuelPerEngine = fmtNum((aircraftOverrides[activeProfile].fuelCruise || 0) / Math.max(1, aircraftOverrides[activeProfile].engineCount || 1), 1);
+    el.aircraftSummary.innerHTML =
+      '<div class="border ' + a.border + ' ' + a.bg + ' rounded-xl p-3.5">' +
+        '<div class="flex items-start justify-between gap-3 mb-1.5">' +
+          '<div>' +
+            '<p class="text-sm font-medium ' + a.text + '">' + escapeHtml(p.label) + '</p>' +
+            '<p class="text-[11px] text-slate-500">' + escapeHtml(p.sub) + '</p>' +
+          '</div>' +
+          '<span class="shrink-0 text-[10px] uppercase tracking-widest ' + a.text + ' font-mono2 border ' + a.border + ' rounded px-1.5 py-0.5">' + p.cat + '</span>' +
+        '</div>' +
+        '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-[11px] font-mono2 text-slate-400">' +
+          '<span>' + p.speed + ' kt cruise</span>' +
+          '<span>' + p.seats + ' seats</span>' +
+          '<span>Cruise ' + (p.cruiseAltFt / 1000).toFixed(0) + 'k ft</span>' +
+          '<span>Max ' + (p.maxAltFt / 1000).toFixed(0) + 'k ft</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function selectAircraft(id) {
+    if (!AIRCRAFT_PROFILES[id]) return;
+    activeProfile = id;
+    seedAircraftOverride(id);
+    el.aircraftSearchInput.value = '';
+    hideAircraftDropdown();
+    renderAircraftSummary();
+    applyAircraftOverridesToInputs();
+    updateAircraftDataNote();
+    updateTaxiHint();
     if (lastItinerary) renderResults();
   }
 
+  function setupAircraftSearch() {
+    el.aircraftSearchInput.addEventListener('focus', function () { showAircraftDropdown(el.aircraftSearchInput.value); });
+    el.aircraftSearchInput.addEventListener('input', function () { showAircraftDropdown(el.aircraftSearchInput.value); });
+    el.aircraftSearchInput.addEventListener('keydown', function (e) {
+      if (!aircraftDropdownOpen) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        aircraftHighlightIndex = Math.min(aircraftHighlightIndex + 1, aircraftDropdownMatches.length - 1);
+        renderAircraftDropdown();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        aircraftHighlightIndex = Math.max(aircraftHighlightIndex - 1, 0);
+        renderAircraftDropdown();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        var idx = aircraftHighlightIndex >= 0 ? aircraftHighlightIndex : 0;
+        if (aircraftDropdownMatches[idx]) selectAircraft(aircraftDropdownMatches[idx].id);
+      } else if (e.key === 'Escape') {
+        hideAircraftDropdown();
+      }
+    });
+    document.addEventListener('click', function (e) {
+      if (!el.aircraftSearchInput.contains(e.target) && !el.aircraftDropdown.contains(e.target)) hideAircraftDropdown();
+    });
+  }
+
   /* =========================================================
-     COST & FUEL ESTIMATOR
+     AIRCRAFT COST & PERFORMANCE PROFILE (per-aircraft, editable, persisted)
   ========================================================= */
   function defaultTaxiFor(profile) {
     return profile.speedIncludesGround ? { out: 0, in: 0 } : { out: 10, in: 5 };
@@ -1694,33 +2029,90 @@
     }
   }
 
-  function loadCostState() {
+  function updateAircraftDataNote() {
+    var p = AIRCRAFT_PROFILES[activeProfile];
+    if (p.note) {
+      el.aircraftDataNote.textContent = '\u26a0 ' + p.note;
+      el.aircraftDataNote.classList.remove('hidden');
+    } else {
+      el.aircraftDataNote.classList.add('hidden');
+    }
+  }
+
+  function defaultOverrideFor(id) {
+    var p = AIRCRAFT_PROFILES[id];
+    var taxi = defaultTaxiFor(p);
+    return {
+      fixedHr: p.fixedHrDefault, variableHr: p.variableHrDefault, mspHr: p.mspHrDefault, maintHr: p.maintHrDefault,
+      engineType: p.engineType, engineCount: p.engineCount, cruiseAltFt: p.cruiseAltFt,
+      fuel1st: p.fuelBurn1stDefault, fuelCruise: p.fuelBurnCruiseDefault, fuelUnit: 'gal', fuelPrice: p.fuelPriceDefault,
+      taxiOut: taxi.out, taxiIn: taxi.in
+    };
+  }
+
+  function seedAircraftOverride(id) {
+    if (!aircraftOverrides[id]) aircraftOverrides[id] = defaultOverrideFor(id);
+  }
+
+  function isValidOverridesShape(obj) {
+    // Old format (pre-rewrite) was a single flat object: {mode, fixedRate, fuelBurn, ...}.
+    // New format is keyed by aircraft id, each value itself an object with fixedHr etc.
+    // Reject anything that doesn't match the new shape rather than crashing on it.
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+    if ('fixedRate' in obj || 'mode' in obj) return false; // unmistakable old-format signature
+    var keys = Object.keys(obj);
+    if (!keys.length) return true; // empty object is fine, will get seeded fresh
+    return keys.every(function (k) {
+      var v = obj[k];
+      return v && typeof v === 'object' && 'fixedHr' in v;
+    });
+  }
+
+  function loadAircraftOverrides() {
     try {
       var raw = localStorage.getItem(COST_STORAGE_KEY);
       if (raw) {
-        var saved = JSON.parse(raw);
-        for (var k in saved) { if (Object.prototype.hasOwnProperty.call(costState, k)) costState[k] = saved[k]; }
-        return true;
+        var parsed = JSON.parse(raw);
+        if (isValidOverridesShape(parsed)) { aircraftOverrides = parsed; return true; }
+        // Old-format or corrupted data under this key — discard it and start fresh
+        // rather than crash; there's no clean way to migrate a blended rate into
+        // the new per-category breakdown anyway.
+        localStorage.removeItem(COST_STORAGE_KEY);
       }
     } catch (e) { /* localStorage unavailable — defaults stand */ }
     return false;
   }
 
-  function saveCostState() {
-    try { localStorage.setItem(COST_STORAGE_KEY, JSON.stringify(costState)); } catch (e) { /* ignore */ }
+  function saveAircraftOverrides() {
+    try { localStorage.setItem(COST_STORAGE_KEY, JSON.stringify(aircraftOverrides)); } catch (e) { /* ignore */ }
   }
 
-  function applyCostStateToInputs() {
-    el.costFixedRate.value = costState.fixedRate || '';
-    el.costFuelBurn.value = costState.fuelBurn || '';
-    el.costFuelPrice.value = costState.fuelPrice || '';
-    el.costTaxiOut.value = costState.taxiOut;
-    el.costTaxiIn.value = costState.taxiIn;
-    setFuelUnitUI(costState.fuelUnit);
+  function applyAircraftOverridesToInputs() {
+    var o = aircraftOverrides[activeProfile];
+    el.acFixed.value = o.fixedHr || '';
+    el.acVariable.value = o.variableHr || '';
+    el.acMsp.value = o.mspHr || '';
+    el.acMaint.value = o.maintHr || '';
+    el.acEngineType.value = o.engineType || '';
+    el.acEngineCount.value = o.engineCount || 1;
+    el.acCruiseAlt.value = o.cruiseAltFt || '';
+    el.acFuel1st.value = o.fuel1st || '';
+    el.acFuelCruise.value = o.fuelCruise || '';
+    el.costFuelPrice.value = o.fuelPrice || '';
+    el.costTaxiOut.value = o.taxiOut;
+    el.costTaxiIn.value = o.taxiIn;
+    setFuelUnitUI(o.fuelUnit || 'gal');
+    updateFuelPerEngineDisplay();
+  }
+
+  function updateFuelPerEngineDisplay() {
+    var count = parseFloat(el.acEngineCount.value) || 1;
+    var cruise = parseFloat(el.acFuelCruise.value) || 0;
+    el.acFuelPerEngine.textContent = fmtNum(cruise / count, 1) + ' ' + aircraftOverrides[activeProfile].fuelUnit + '/hr';
   }
 
   function setFuelUnitUI(unit) {
-    costState.fuelUnit = unit;
+    aircraftOverrides[activeProfile].fuelUnit = unit;
     var buttons = el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn');
     buttons.forEach(function (b) {
       var isLbs = b.getAttribute('data-unit') === 'lbs';
@@ -1733,125 +2125,105 @@
     el.costFuelTotalUnit.textContent = unit === 'gal' ? 'gal' : 'lb';
   }
 
-  function setCostMode(mode) {
-    costState.mode = mode;
-    var buttons = el.costModeToggle.querySelectorAll('.cost-mode-btn');
-    buttons.forEach(function (b) {
-      var isItemized = b.getAttribute('data-mode') === 'itemized';
-      var active = b.getAttribute('data-mode') === mode;
-      b.className = 'cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 ' +
-        (isItemized ? 'border-l border-slate-700 ' : '') +
-        (active ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500 hover:text-slate-300');
-    });
-    if (mode === 'allin') {
-      el.costFixedRateLabel.textContent = 'All-In Rate ($/hr)';
-      el.costFixedRate.placeholder = 'e.g. 3200';
-      el.costFuelCostLabel.textContent = 'Fuel Cost (ref.)';
-      el.costFuelCostNote.textContent = 'informational — already in rate';
-      el.costNonFuelLabel.textContent = 'All-In Cost';
-      el.costNonFuelNote.textContent = 'all-in rate × engine time';
-    } else {
-      el.costFixedRateLabel.textContent = 'Fixed Hourly Rate, Non-Fuel ($/hr)';
-      el.costFixedRate.placeholder = 'e.g. 450';
-      el.costFuelCostLabel.textContent = 'Fuel Cost';
-      el.costFuelCostNote.textContent = 'at entered price';
-      el.costNonFuelLabel.textContent = 'Non-Fuel Cost';
-      el.costNonFuelNote.textContent = 'fixed rate × engine time';
-    }
+  function readCostInputsToOverride() {
+    var o = aircraftOverrides[activeProfile];
+    o.fixedHr = parseFloat(el.acFixed.value) || 0;
+    o.variableHr = parseFloat(el.acVariable.value) || 0;
+    o.mspHr = parseFloat(el.acMsp.value) || 0;
+    o.maintHr = parseFloat(el.acMaint.value) || 0;
+    o.engineType = el.acEngineType.value || '';
+    o.engineCount = parseFloat(el.acEngineCount.value) || 1;
+    o.cruiseAltFt = parseFloat(el.acCruiseAlt.value) || 0;
+    o.fuel1st = parseFloat(el.acFuel1st.value) || 0;
+    o.fuelCruise = parseFloat(el.acFuelCruise.value) || 0;
+    o.fuelPrice = parseFloat(el.costFuelPrice.value) || 0;
+    o.taxiOut = parseFloat(el.costTaxiOut.value) || 0;
+    o.taxiIn = parseFloat(el.costTaxiIn.value) || 0;
+    updateFuelPerEngineDisplay();
+    saveAircraftOverrides();
+    // cruiseAltFt drives wind-correction pressure-level sampling — a live itinerary
+    // with wind on needs a re-fetch if this aircraft's altitude assumption changed.
+    AIRCRAFT_PROFILES[activeProfile].cruiseAltFt = o.cruiseAltFt || AIRCRAFT_PROFILES[activeProfile].cruiseAltFt;
   }
 
-  function updateTypicalBurnButton() {
-    var p = AIRCRAFT_PROFILES[activeProfile];
-    if (p.rateDefault) {
-      el.useTypicalBurn.textContent = 'Use ' + p.label + ' logged average: $' + p.rateDefault.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/hr all-in, ' + p.fuelDefault + ' gal/hr →';
-    } else {
-      el.useTypicalBurn.textContent = 'Use typical ' + p.label + ' burn (' + p.fuelDefault + ' gal/hr) →';
-    }
-    updateTaxiHint();
+  // Fuel burn for one leg: the first hour of flight (climb + early cruise) burns at
+  // fuel1st; anything beyond the first hour burns at the steady fuelCruise rate.
+  // Taxi minutes are charged at the cruise rate (unchanged simplification).
+  function legFuelGallons(flightHrs, fuel1st, fuelCruise) {
+    var firstPortion = Math.min(flightHrs, 1);
+    var remainder = Math.max(flightHrs - 1, 0);
+    return firstPortion * fuel1st + remainder * fuelCruise;
   }
 
-  function readCostInputs() {
-    costState.fixedRate = parseFloat(el.costFixedRate.value) || 0;
-    costState.fuelBurn = parseFloat(el.costFuelBurn.value) || 0;
-    costState.fuelPrice = parseFloat(el.costFuelPrice.value) || 0;
-    costState.taxiOut = parseFloat(el.costTaxiOut.value) || 0;
-    costState.taxiIn = parseFloat(el.costTaxiIn.value) || 0;
-    saveCostState();
+  // Shared cost/fuel math for ANY aircraft id against the current itinerary — powers
+  // both the single-aircraft Trip Cost panel and the Fleet Comparison tab, so the two
+  // views can never silently disagree with each other.
+  function computeTripCostFor(aircraftId) {
+    seedAircraftOverride(aircraftId);
+    var o = aircraftOverrides[aircraftId];
+    var legCount = lastItinerary.legs.length;
+    var taxiHrsTotal = ((o.taxiOut + o.taxiIn) / 60) * legCount;
+    var flightHrsTotal = totalEffectiveEteHrs(aircraftId);
+    var fuelTotal = 0;
+    for (var i = 0; i < lastItinerary.legs.length; i++) {
+      fuelTotal += legFuelGallons(legEffectiveEteHrs(i, aircraftId), o.fuel1st, o.fuelCruise);
+    }
+    var engineHrs = flightHrsTotal + taxiHrsTotal;
+    var fuelCost = fuelTotal * o.fuelPrice;
+    var fixedCost = o.fixedHr * engineHrs;
+    var variableCost = o.variableHr * engineHrs;
+    var mspCost = o.mspHr * engineHrs;
+    var maintCost = o.maintHr * engineHrs;
+    var totalCost = fixedCost + variableCost + mspCost + maintCost + fuelCost;
+    return {
+      legCount: legCount, taxiOut: o.taxiOut, taxiIn: o.taxiIn, fuelUnit: o.fuelUnit,
+      engineHrs: engineHrs, fuelTotal: fuelTotal, fuelCost: fuelCost,
+      fixedCost: fixedCost, variableCost: variableCost, mspCost: mspCost, maintCost: maintCost, totalCost: totalCost
+    };
   }
 
   function computeCostEstimate() {
     if (!lastItinerary) return;
-    readCostInputs();
+    readCostInputsToOverride();
+    var r = computeTripCostFor(activeProfile);
 
-    var flightHrs = totalEffectiveEteHrs(activeProfile);
-    var legCount = lastItinerary.legs.length;
-    var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
-    var engineHrs = flightHrs + taxiHrsTotal;
-
-    var fuelTotal = costState.fuelBurn * engineHrs;
-    var fuelCostRef = fuelTotal * costState.fuelPrice;
-    var rateCost = costState.fixedRate * engineHrs;
-    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
-
-    el.costEngineTime.textContent = formatETE(engineHrs);
-    el.costEngineNote.textContent = legCount + ' leg' + (legCount > 1 ? 's' : '') + ' × ' + (costState.taxiOut + costState.taxiIn) + ' min taxi';
-    el.costFuelTotal.textContent = fmtNum(fuelTotal, 1);
-    el.costFuelCost.textContent = '$' + fmtNum(fuelCostRef, 2);
-    el.costNonFuel.textContent = '$' + fmtNum(rateCost, 2);
-    el.costTotal.textContent = '$' + fmtNum(totalCost, 2);
-    el.costTotalNote.textContent = costState.fixedRate
-      ? engineHrs.toFixed(2) + ' hr engine time'
-      : 'enter your rate above for a live total';
+    el.costEngineTime.textContent = formatETE(r.engineHrs);
+    el.costEngineNote.textContent = r.legCount + ' leg' + (r.legCount > 1 ? 's' : '') + ' \u00d7 ' + (r.taxiOut + r.taxiIn) + ' min taxi';
+    el.costFuelTotal.textContent = fmtNum(r.fuelTotal, 1);
+    el.costFuelCost.textContent = '$' + fmtNum(r.fuelCost, 2);
+    el.costFixedTotal.textContent = '$' + fmtNum(r.fixedCost, 2);
+    el.costVariableTotal.textContent = '$' + fmtNum(r.variableCost, 2);
+    el.costMspTotal.textContent = '$' + fmtNum(r.mspCost, 2);
+    el.costMaintTotal.textContent = '$' + fmtNum(r.maintCost, 2);
+    el.costTotal.textContent = '$' + fmtNum(r.totalCost, 2);
+    el.costTotalNote.textContent = r.engineHrs.toFixed(2) + ' hr engine time';
   }
 
   function setupCostCalculator() {
-    var hadSaved = loadCostState();
-    if (!hadSaved) {
-      var p0 = AIRCRAFT_PROFILES[activeProfile];
-      var taxi0 = defaultTaxiFor(p0);
-      costState.fuelBurn = p0.fuelDefault;
-      costState.fuelUnit = 'gal';
-      costState.mode = 'allin';
-      costState.taxiOut = taxi0.out;
-      costState.taxiIn = taxi0.in;
-      if (p0.rateDefault) costState.fixedRate = p0.rateDefault;
-    }
-    applyCostStateToInputs();
-    setCostMode(costState.mode);
-    updateTypicalBurnButton();
+    var hadSaved = loadAircraftOverrides();
+    if (!hadSaved) aircraftOverrides = {};
+    seedAircraftOverride(activeProfile);
+    applyAircraftOverridesToInputs();
+    updateAircraftDataNote();
+    updateTaxiHint();
 
-    [el.costFixedRate, el.costFuelBurn, el.costFuelPrice, el.costTaxiOut, el.costTaxiIn].forEach(function (input) {
+    [el.acFixed, el.acVariable, el.acMsp, el.acMaint, el.acEngineType, el.acEngineCount, el.acCruiseAlt,
+     el.acFuel1st, el.acFuelCruise, el.costFuelPrice, el.costTaxiOut, el.costTaxiIn].forEach(function (input) {
       input.addEventListener('input', function () { computeCostEstimate(); });
     });
 
     el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         setFuelUnitUI(btn.getAttribute('data-unit'));
-        readCostInputs();
+        readCostInputsToOverride();
         computeCostEstimate();
       });
     });
 
-    el.costModeToggle.querySelectorAll('.cost-mode-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setCostMode(btn.getAttribute('data-mode'));
-        saveCostState();
-        computeCostEstimate();
-      });
-    });
-
-    el.useTypicalBurn.addEventListener('click', function () {
-      var p = AIRCRAFT_PROFILES[activeProfile];
-      var taxi = defaultTaxiFor(p);
-      setFuelUnitUI('gal');
-      el.costFuelBurn.value = p.fuelDefault;
-      el.costTaxiOut.value = taxi.out;
-      el.costTaxiIn.value = taxi.in;
-      if (p.rateDefault) {
-        setCostMode('allin');
-        el.costFixedRate.value = p.rateDefault;
-      }
-      readCostInputs();
+    el.resetAircraftDefaults.addEventListener('click', function () {
+      aircraftOverrides[activeProfile] = defaultOverrideFor(activeProfile);
+      applyAircraftOverridesToInputs();
+      saveAircraftOverrides();
       computeCostEstimate();
     });
   }
@@ -1889,14 +2261,6 @@
     });
   }
 
-  function setupProfileClicks() {
-    el.profileButtons.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-profile]');
-      if (!btn) return;
-      setActiveProfile(btn.getAttribute('data-profile'));
-    });
-  }
-
   function setupInfoModal() {
     el.infoBtn.addEventListener('click', function () {
       el.infoModal.classList.remove('hidden');
@@ -1922,11 +2286,13 @@
     cacheEls();
     renderWaypointList();
     setupWaypointListClicks();
-    buildProfileButtons();
-    setupProfileClicks();
+    setupAircraftSearch();
+    seedAircraftOverride(activeProfile);
+    renderAircraftSummary();
     setupRouteBuilderControls();
     setupWindControls();
     setupPublishButton();
+    setupTabs();
     setupInfoModal();
     setupCostCalculator();
     loadAirportData();
