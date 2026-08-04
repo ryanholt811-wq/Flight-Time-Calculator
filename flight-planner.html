@@ -95,12 +95,24 @@
   @media (prefers-reduced-motion: reduce) {
     .anim-in, .dropdown-anim, .profile-btn, .result-card { animation: none !important; transition: none !important; }
   }
+
+  @media print {
+    @page { margin: 0.6in; }
+    html, body { background: #ffffff !important; background-image: none !important; color: #0f172a; }
+    #printSummary table { border-collapse: collapse; width: 100%; font-size: 11px; margin-bottom: 14px; }
+    #printSummary th, #printSummary td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; vertical-align: top; }
+    #printSummary thead { display: table-header-group; }
+    #printSummary th { background: #f1f5f9 !important; }
+    #printSummary tr { break-inside: avoid; }
+    #printSummary h1, #printSummary h2 { break-after: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body class="text-slate-200">
 
 <!-- ============ HEADER ============ -->
-<header class="border-b border-slate-800/80 bg-[#060a12]/85 backdrop-blur sticky top-0 z-30">
+<header class="border-b border-slate-800/80 bg-[#060a12]/85 backdrop-blur sticky top-0 z-30 print:hidden">
   <div class="max-w-7xl mx-auto px-4 md:px-6 py-3.5 flex items-center justify-between gap-3">
     <div class="flex items-center gap-3 min-w-0">
       <svg width="30" height="30" viewBox="0 0 24 24" fill="none" class="text-cyan-400 shrink-0">
@@ -129,7 +141,7 @@
 <main class="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
 
   <!-- Route Builder -->
-  <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+  <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5 print:hidden">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Route Builder</h2>
       <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -154,7 +166,7 @@
   </section>
 
   <!-- Aircraft profile toggle + wind correction -->
-  <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5">
+  <section class="panel border border-slate-800 rounded-2xl p-4 md:p-5 print:hidden">
     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
       <h2 class="text-[11px] uppercase tracking-widest text-slate-500">Flight Profile — Performance Ruleset</h2>
       <div class="flex items-center gap-3">
@@ -179,7 +191,7 @@
   </section>
 
   <!-- Prompt / awaiting state -->
-  <div id="promptState" class="panel border border-dashed border-slate-800 rounded-2xl p-8 text-center">
+  <div id="promptState" class="panel border border-dashed border-slate-800 rounded-2xl p-8 text-center print:hidden">
     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" class="mx-auto text-slate-700 mb-3">
       <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
       <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
@@ -190,6 +202,14 @@
 
   <!-- ============ RESULTS ============ -->
   <section id="resultsSection" class="hidden space-y-5 anim-in">
+  <div class="print:hidden space-y-5">
+
+    <div class="flex justify-end">
+      <button type="button" id="publishBtn" class="inline-flex items-center gap-2 text-xs font-mono2 text-emerald-400 hover:text-emerald-300 border border-emerald-700/60 hover:border-emerald-400/60 bg-emerald-500/5 rounded-lg px-3.5 py-2 transition">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Publish Itinerary (PDF)
+      </button>
+    </div>
 
     <!-- Safety banner -->
     <div id="safetyBanner" class="hidden items-start gap-3 bg-red-950/50 border border-red-800/70 rounded-2xl p-4">
@@ -361,11 +381,13 @@
       <div id="alternatesGrid" class="grid sm:grid-cols-3 gap-3"></div>
     </div>
 
+  </div>
+  <div id="printSummary" class="hidden print:block bg-white text-slate-900 p-2"></div>
   </section>
 </main>
 
 <!-- ============ FOOTER ============ -->
-<footer class="border-t border-slate-800/80 mt-8">
+<footer class="border-t border-slate-800/80 mt-8 print:hidden">
   <div class="max-w-7xl mx-auto px-4 md:px-6 py-6 text-[11px] leading-relaxed text-slate-600 space-y-1 font-mono2">
     <p>⚠ PLANNING AID ONLY. Not for actual flight navigation, dispatch, or FAR/AIM compliance.</p>
     <p id="footerDataNote">Data: live pull attempted from a public-domain North America airport dataset; falls back to an embedded regional dataset if the feed is unreachable.</p>
@@ -387,6 +409,7 @@
       <li><span class="text-slate-300">Multi-stop &amp; round trip:</span> each leg — including mirrored return legs — is computed independently, then summed into trip totals. Taxi-out/taxi-in allowances in the cost calculator apply <strong class="text-slate-300">per leg</strong>, not once for the whole itinerary. The runway advisory and shortest-runway stat check every stop the itinerary actually lands at.</li>
       <li><span class="text-slate-300">Route map:</span> renders the true great-circle path over a live dark basemap (CARTO). Requires an internet connection to load map tiles.</li>
       <li><span class="text-slate-300">Cost &amp; fuel estimator:</span> entirely user-supplied figures. The fuel-burn field is seeded with a rough per-category starting point only — replace it with your aircraft's actual POH/operating data for a trustworthy trip cost.</li>
+      <li><span class="text-slate-300">Publish Itinerary (PDF):</span> renders a clean, printer-friendly summary of the currently computed itinerary — route, stats, leg-by-leg breakdown, fleet comparison, cost estimate, and alternates — and opens your browser's print dialog. Choose "Save as PDF" (or "Microsoft Print to PDF" on Windows, "Save to Files" on iOS) as the destination to export it. This uses the browser's native print engine rather than an external PDF library, so it works fully offline.</li>
     </ul>
   </div>
 </div>
@@ -604,7 +627,8 @@
      'costFuelTotalUnit','costFuelCost','costNonFuel','costTotal','costTotalNote',
      'costModeToggle','costFixedRateLabel','costFuelCostLabel','costFuelCostNote',
      'costNonFuelLabel','costNonFuelNote','taxiHint',
-     'windToggle','windStatusPill','windStatusDot','windStatusText','windRefreshBtn','windCaption'
+     'windToggle','windStatusPill','windStatusDot','windStatusText','windRefreshBtn','windCaption',
+     'publishBtn','printSummary'
     ].forEach(function (id) { el[id] = document.getElementById(id); });
   }
 
@@ -1274,6 +1298,141 @@
     renderRouteMap();
     renderWindStatus();
     computeCostEstimate();
+    renderPrintSummary();
+  }
+
+  /* =========================================================
+     PUBLISH ITINERARY (print / save-as-PDF)
+  ========================================================= */
+  function renderPrintSummary() {
+    if (!lastItinerary || !el.printSummary) return;
+    var it = lastItinerary;
+    var profile = AIRCRAFT_PROFILES[activeProfile];
+    var useWind = windEnabled && windDataMatchesCurrentItinerary();
+    var generatedStr = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+    var routeLine = waypoints.map(function (w) { return w.airport ? w.airport.icao : '?'; }).join(' \u2192 ');
+    if (roundTrip && waypoints[0].airport) routeLine += ' \u2192 ' + waypoints[0].airport.icao + ' (Round Trip)';
+
+    var eteHrs = totalEffectiveEteHrs(activeProfile);
+    var outboundLegCount = it.legs.filter(function (l) { return l.direction === 'outbound'; }).length;
+    var returnLegCount = it.legs.length - outboundLegCount;
+
+    var html = '';
+    html += '<div class="border-b-2 border-slate-900 pb-3 mb-4">' +
+      '<h1 class="text-2xl font-bold tracking-tight">AERONAV\u00b7FPX \u2014 Flight Itinerary</h1>' +
+      '<p class="text-xs text-slate-600 mt-1">Generated ' + escapeHtml(generatedStr) + ' \u00b7 Planning aid only \u2014 not for actual flight navigation, dispatch, or FAR/AIM compliance.</p>' +
+    '</div>';
+
+    html += '<div class="mb-4">' +
+      '<p class="text-lg font-semibold">' + escapeHtml(routeLine) + '</p>' +
+      '<p class="text-sm text-slate-600 mt-0.5">Aircraft Profile: ' + profile.label + ' (' + profile.speed + ' KTAS)' +
+        (useWind ? ' \u00b7 wind-corrected (' + (windSource === 'live' ? 'live forecast' : 'climatological estimate') + ')' : ' \u00b7 no-wind, still-air estimate') +
+      '</p>' +
+    '</div>';
+
+    var shortFields = profile.isJet ? it.arrivalAirports.filter(function (a) { return a.runway < profile.minRunway; }) : [];
+    if (shortFields.length) {
+      var shortList = shortFields.map(function (a) { return a.icao + ' (' + a.runway.toLocaleString() + ' ft)'; }).join(', ');
+      html += '<div class="border-2 border-red-700 rounded-lg p-3 mb-4" style="background:#fef2f2">' +
+        '<p class="font-semibold text-red-800 text-sm">\u26a0 Runway Performance Advisory</p>' +
+        '<p class="text-sm text-red-900 mt-1">Below the ' + profile.minRunway.toLocaleString() + ' ft reference minimum for ' + profile.label + ': ' + escapeHtml(shortList) + '. Verify balanced-field length before dispatch.</p>' +
+      '</div>';
+    }
+
+    var sortedByRunway = it.arrivalAirports.slice().sort(function (a, b) { return a.runway - b.runway; });
+    html += '<table><tbody>' +
+      '<tr><td class="font-medium" style="background:#f8fafc;width:28%">Total Distance</td><td>' + fmtNum(it.totalDistNM, 1) + ' nm / ' + fmtNum(it.totalDistSM, 1) + ' sm</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Total ETE</td><td>' + formatETE(eteHrs) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Legs</td><td>' + it.legs.length + (returnLegCount ? ' (' + outboundLegCount + ' outbound, ' + returnLegCount + ' return)' : ' (one-way)') + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Shortest Runway on Route</td><td>' + (sortedByRunway.length ? sortedByRunway[0].runway.toLocaleString() + ' ft (' + sortedByRunway[0].icao + ')' : '\u2014') + '</td></tr>' +
+    '</tbody></table>';
+
+    html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Leg-by-Leg Breakdown</h2>';
+    html += '<table><thead><tr><th>Leg</th><th>From \u2192 To</th><th>Dir.</th><th>Dist (nm)</th><th>Course</th>' + (useWind ? '<th>Wind</th>' : '') + '<th>ETE</th></tr></thead><tbody>';
+    it.legs.forEach(function (leg, i) {
+      var legEte = legEffectiveEteHrs(i, activeProfile);
+      var windCell = '';
+      if (useWind) {
+        var adj = windAdjustedForLeg(leg, windPerLeg[i], activeProfile);
+        windCell = adj ? ('<td>' + (adj.windComponent >= 0 ? '+' + Math.round(adj.windComponent) + ' TW' : Math.round(adj.windComponent) + ' HW') + '</td>') : '<td>\u2014</td>';
+      }
+      html += '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + leg.from.icao + ' \u2192 ' + leg.to.icao + ' <span style="color:#64748b">(' + escapeHtml(leg.from.city) + ' \u2192 ' + escapeHtml(leg.to.city) + ')</span></td>' +
+        '<td>' + (leg.direction === 'return' ? 'Return' : 'Outbound') + '</td>' +
+        '<td>' + fmtNum(leg.distNM, 0) + '</td>' +
+        '<td>' + Math.round(leg.course) + '\u00b0</td>' +
+        windCell +
+        '<td>' + formatETE(legEte) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+
+    html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Fleet Comparison \u2014 Total Trip ETE</h2>';
+    html += '<table><thead><tr><th>Category</th><th>Cruise TAS</th><th>Total ETE</th></tr></thead><tbody>';
+    PROFILE_ORDER.forEach(function (key) {
+      var p = AIRCRAFT_PROFILES[key];
+      var pEte = totalEffectiveEteHrs(key);
+      html += '<tr' + (key === activeProfile ? ' style="background:#fffbeb;font-weight:600"' : '') + '>' +
+        '<td>' + p.label + (key === activeProfile ? ' (selected)' : '') + '</td>' +
+        '<td>' + p.speed + ' kt</td>' +
+        '<td>' + formatETE(pEte) + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+
+    var flightHrs = totalEffectiveEteHrs(activeProfile);
+    var legCount = it.legs.length;
+    var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
+    var engineHrs = flightHrs + taxiHrsTotal;
+    var fuelTotal = costState.fuelBurn * engineHrs;
+    var fuelCostRef = fuelTotal * costState.fuelPrice;
+    var rateCost = costState.fixedRate * engineHrs;
+    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
+
+    html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Cost &amp; Fuel Estimate</h2>';
+    html += '<table><tbody>' +
+      '<tr><td class="font-medium" style="background:#f8fafc;width:33%">Rate Mode</td><td>' + (costState.mode === 'allin' ? 'All-In $/hr' : 'Itemized') + '</td></tr>' +
+      (costState.fixedRate ? '<tr><td class="font-medium" style="background:#f8fafc">' + (costState.mode === 'allin' ? 'All-In Rate' : 'Fixed Rate (non-fuel)') + '</td><td>$' + fmtNum(costState.fixedRate, 2) + '/hr</td></tr>' : '') +
+      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Burn Rate</td><td>' + fmtNum(costState.fuelBurn, 1) + ' ' + costState.fuelUnit + '/hr</td></tr>' +
+      (costState.fuelPrice ? '<tr><td class="font-medium" style="background:#f8fafc">Fuel Price</td><td>$' + fmtNum(costState.fuelPrice, 2) + '/' + costState.fuelUnit + '</td></tr>' : '') +
+      '<tr><td class="font-medium" style="background:#f8fafc">Taxi Allowance</td><td>' + costState.taxiOut + ' min out / ' + costState.taxiIn + ' min in, per leg (' + legCount + ' legs)</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Engine Run Time</td><td>' + formatETE(engineHrs) + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc">Fuel Burned</td><td>' + fmtNum(fuelTotal, 1) + ' ' + costState.fuelUnit + '</td></tr>' +
+      '<tr><td class="font-medium" style="background:#f8fafc;font-weight:700">Total Estimated Trip Cost</td><td style="font-weight:700">$' + fmtNum(totalCost, 2) + '</td></tr>' +
+    '</tbody></table>';
+
+    if (it.alternates.length) {
+      html += '<h2 class="text-sm font-semibold uppercase tracking-wide mb-2 mt-5">Diversion Alternates \u2014 Nearest to Final Destination</h2>';
+      html += '<table><thead><tr><th>ICAO</th><th>Name</th><th>Distance</th><th>Runway</th></tr></thead><tbody>';
+      it.alternates.forEach(function (item) {
+        var a = item.airport;
+        html += '<tr><td>' + a.icao + (a.iata ? '/' + a.iata : '') + '</td><td>' + escapeHtml(a.name) + ', ' + escapeHtml(a.city) + '</td><td>' + fmtNum(item.distFromDest, 1) + ' nm</td><td>' + a.runway.toLocaleString() + ' ft</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    html += '<p class="text-[10px] mt-6 pt-3 border-t" style="color:#64748b;border-color:#cbd5e1">Airport data: ' +
+      (dataSource === 'live' ? 'live feed' : 'offline embedded dataset') + ' (' + AIRPORTS.length.toLocaleString() + ' US/CA fields). ' +
+      (windEnabled ? ('Wind data: ' + (windSource === 'live' ? 'live forecast' : windSource === 'climatological' ? 'climatological estimate' : 'unavailable') + '. ') : '') +
+      'Great-circle, still-air planning estimate \u2014 verify against official dispatch data before flight.</p>';
+
+    el.printSummary.innerHTML = html;
+  }
+
+  function setupPublishButton() {
+    if (!el.publishBtn) return;
+    el.publishBtn.addEventListener('click', function () {
+      if (!lastItinerary) return;
+      renderPrintSummary();
+      var routeIcaos = waypoints.map(function (w) { return w.airport ? w.airport.icao : ''; }).filter(Boolean).join('-');
+      document.title = 'AERONAV-FPX_' + routeIcaos + (roundTrip ? '-RT' : '') + '_Itinerary';
+      window.print();
+    });
+    window.addEventListener('afterprint', function () {
+      document.title = 'AERONAV · FPX — Cross-Border Flight Planning System';
+    });
   }
 
   function renderSafetyBanner() {
@@ -1503,286 +1662,4 @@
             '<span class="text-sm font-medium ' + (isActive ? a.text : 'text-slate-300') + '">' + p.label + '</span>' +
             '<span class="font-mono2 text-xs ' + (isActive ? a.text : 'text-slate-500') + '">' + p.speed + ' KTAS</span>' +
           '</div>' +
-          '<p class="text-[11px] text-slate-500">' + p.sub + '</p>' +
-        '</button>'
-      );
-    }).join('');
-    el.profileButtons.innerHTML = html;
-  }
-
-  function setActiveProfile(key) {
-    if (!AIRCRAFT_PROFILES[key] || key === activeProfile) return;
-    activeProfile = key;
-    buildProfileButtons();
-    updateTypicalBurnButton();
-    if (lastItinerary) renderResults();
-  }
-
-  /* =========================================================
-     COST & FUEL ESTIMATOR
-  ========================================================= */
-  function defaultTaxiFor(profile) {
-    return profile.speedIncludesGround ? { out: 0, in: 0 } : { out: 10, in: 5 };
-  }
-
-  function updateTaxiHint() {
-    var p = AIRCRAFT_PROFILES[activeProfile];
-    if (p.speedIncludesGround) {
-      el.taxiHint.textContent = p.label + '\u2019s speed is derived from all-in logged hours that already include ground/taxi time \u2014 leave these at 0 unless adding extra delay beyond your logged average.';
-      el.taxiHint.classList.remove('hidden');
-    } else {
-      el.taxiHint.classList.add('hidden');
-    }
-  }
-
-  function loadCostState() {
-    try {
-      var raw = localStorage.getItem(COST_STORAGE_KEY);
-      if (raw) {
-        var saved = JSON.parse(raw);
-        for (var k in saved) { if (Object.prototype.hasOwnProperty.call(costState, k)) costState[k] = saved[k]; }
-        return true;
-      }
-    } catch (e) { /* localStorage unavailable — defaults stand */ }
-    return false;
-  }
-
-  function saveCostState() {
-    try { localStorage.setItem(COST_STORAGE_KEY, JSON.stringify(costState)); } catch (e) { /* ignore */ }
-  }
-
-  function applyCostStateToInputs() {
-    el.costFixedRate.value = costState.fixedRate || '';
-    el.costFuelBurn.value = costState.fuelBurn || '';
-    el.costFuelPrice.value = costState.fuelPrice || '';
-    el.costTaxiOut.value = costState.taxiOut;
-    el.costTaxiIn.value = costState.taxiIn;
-    setFuelUnitUI(costState.fuelUnit);
-  }
-
-  function setFuelUnitUI(unit) {
-    costState.fuelUnit = unit;
-    var buttons = el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn');
-    buttons.forEach(function (b) {
-      var isLbs = b.getAttribute('data-unit') === 'lbs';
-      var active = b.getAttribute('data-unit') === unit;
-      b.className = 'fuel-unit-btn px-2 py-1 text-[10px] font-mono2 ' +
-        (isLbs ? 'border-l border-slate-700 ' : '') +
-        (active ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-slate-300');
-    });
-    el.fuelPriceLabel.textContent = 'Fuel Price ($/' + (unit === 'gal' ? 'gal' : 'lb') + ')';
-    el.costFuelTotalUnit.textContent = unit === 'gal' ? 'gal' : 'lb';
-  }
-
-  function setCostMode(mode) {
-    costState.mode = mode;
-    var buttons = el.costModeToggle.querySelectorAll('.cost-mode-btn');
-    buttons.forEach(function (b) {
-      var isItemized = b.getAttribute('data-mode') === 'itemized';
-      var active = b.getAttribute('data-mode') === mode;
-      b.className = 'cost-mode-btn px-2.5 py-1 text-[10px] font-mono2 ' +
-        (isItemized ? 'border-l border-slate-700 ' : '') +
-        (active ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500 hover:text-slate-300');
-    });
-    if (mode === 'allin') {
-      el.costFixedRateLabel.textContent = 'All-In Rate ($/hr)';
-      el.costFixedRate.placeholder = 'e.g. 3200';
-      el.costFuelCostLabel.textContent = 'Fuel Cost (ref.)';
-      el.costFuelCostNote.textContent = 'informational — already in rate';
-      el.costNonFuelLabel.textContent = 'All-In Cost';
-      el.costNonFuelNote.textContent = 'all-in rate × engine time';
-    } else {
-      el.costFixedRateLabel.textContent = 'Fixed Hourly Rate, Non-Fuel ($/hr)';
-      el.costFixedRate.placeholder = 'e.g. 450';
-      el.costFuelCostLabel.textContent = 'Fuel Cost';
-      el.costFuelCostNote.textContent = 'at entered price';
-      el.costNonFuelLabel.textContent = 'Non-Fuel Cost';
-      el.costNonFuelNote.textContent = 'fixed rate × engine time';
-    }
-  }
-
-  function updateTypicalBurnButton() {
-    var p = AIRCRAFT_PROFILES[activeProfile];
-    if (p.rateDefault) {
-      el.useTypicalBurn.textContent = 'Use ' + p.label + ' logged average: $' + p.rateDefault.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '/hr all-in, ' + p.fuelDefault + ' gal/hr →';
-    } else {
-      el.useTypicalBurn.textContent = 'Use typical ' + p.label + ' burn (' + p.fuelDefault + ' gal/hr) →';
-    }
-    updateTaxiHint();
-  }
-
-  function readCostInputs() {
-    costState.fixedRate = parseFloat(el.costFixedRate.value) || 0;
-    costState.fuelBurn = parseFloat(el.costFuelBurn.value) || 0;
-    costState.fuelPrice = parseFloat(el.costFuelPrice.value) || 0;
-    costState.taxiOut = parseFloat(el.costTaxiOut.value) || 0;
-    costState.taxiIn = parseFloat(el.costTaxiIn.value) || 0;
-    saveCostState();
-  }
-
-  function computeCostEstimate() {
-    if (!lastItinerary) return;
-    readCostInputs();
-
-    var flightHrs = totalEffectiveEteHrs(activeProfile);
-    var legCount = lastItinerary.legs.length;
-    var taxiHrsTotal = ((costState.taxiOut + costState.taxiIn) / 60) * legCount;
-    var engineHrs = flightHrs + taxiHrsTotal;
-
-    var fuelTotal = costState.fuelBurn * engineHrs;
-    var fuelCostRef = fuelTotal * costState.fuelPrice;
-    var rateCost = costState.fixedRate * engineHrs;
-    var totalCost = (costState.mode === 'allin') ? rateCost : (fuelCostRef + rateCost);
-
-    el.costEngineTime.textContent = formatETE(engineHrs);
-    el.costEngineNote.textContent = legCount + ' leg' + (legCount > 1 ? 's' : '') + ' × ' + (costState.taxiOut + costState.taxiIn) + ' min taxi';
-    el.costFuelTotal.textContent = fmtNum(fuelTotal, 1);
-    el.costFuelCost.textContent = '$' + fmtNum(fuelCostRef, 2);
-    el.costNonFuel.textContent = '$' + fmtNum(rateCost, 2);
-    el.costTotal.textContent = '$' + fmtNum(totalCost, 2);
-    el.costTotalNote.textContent = costState.fixedRate
-      ? engineHrs.toFixed(2) + ' hr engine time'
-      : 'enter your rate above for a live total';
-  }
-
-  function setupCostCalculator() {
-    var hadSaved = loadCostState();
-    if (!hadSaved) {
-      var p0 = AIRCRAFT_PROFILES[activeProfile];
-      var taxi0 = defaultTaxiFor(p0);
-      costState.fuelBurn = p0.fuelDefault;
-      costState.fuelUnit = 'gal';
-      costState.mode = 'allin';
-      costState.taxiOut = taxi0.out;
-      costState.taxiIn = taxi0.in;
-      if (p0.rateDefault) costState.fixedRate = p0.rateDefault;
-    }
-    applyCostStateToInputs();
-    setCostMode(costState.mode);
-    updateTypicalBurnButton();
-
-    [el.costFixedRate, el.costFuelBurn, el.costFuelPrice, el.costTaxiOut, el.costTaxiIn].forEach(function (input) {
-      input.addEventListener('input', function () { computeCostEstimate(); });
-    });
-
-    el.fuelUnitToggle.querySelectorAll('.fuel-unit-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setFuelUnitUI(btn.getAttribute('data-unit'));
-        readCostInputs();
-        computeCostEstimate();
-      });
-    });
-
-    el.costModeToggle.querySelectorAll('.cost-mode-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        setCostMode(btn.getAttribute('data-mode'));
-        saveCostState();
-        computeCostEstimate();
-      });
-    });
-
-    el.useTypicalBurn.addEventListener('click', function () {
-      var p = AIRCRAFT_PROFILES[activeProfile];
-      var taxi = defaultTaxiFor(p);
-      setFuelUnitUI('gal');
-      el.costFuelBurn.value = p.fuelDefault;
-      el.costTaxiOut.value = taxi.out;
-      el.costTaxiIn.value = taxi.in;
-      if (p.rateDefault) {
-        setCostMode('allin');
-        el.costFixedRate.value = p.rateDefault;
-      }
-      readCostInputs();
-      computeCostEstimate();
-    });
-  }
-
-  /* =========================================================
-     EVENT WIRING — route builder, wind, profiles, info modal
-  ========================================================= */
-  function setupRouteBuilderControls() {
-    el.addStopBtn.addEventListener('click', addStop);
-    el.reverseRouteBtn.addEventListener('click', reverseRoute);
-    el.roundTripToggle.addEventListener('change', function () {
-      roundTrip = el.roundTripToggle.checked;
-      validateAndCompute();
-    });
-  }
-
-  function setupWindControls() {
-    el.windToggle.addEventListener('change', function () {
-      windEnabled = el.windToggle.checked;
-      if (windEnabled && lastItinerary) {
-        var key = buildItineraryKey(lastItinerary.legs);
-        if (windDataKey !== key) {
-          fetchWindForItinerary();
-        } else {
-          renderWindStatus();
-          renderResults();
-        }
-      } else {
-        renderWindStatus();
-        if (lastItinerary) renderResults();
-      }
-    });
-    el.windRefreshBtn.addEventListener('click', function () {
-      if (lastItinerary) fetchWindForItinerary();
-    });
-  }
-
-  function setupProfileClicks() {
-    el.profileButtons.addEventListener('click', function (e) {
-      var btn = e.target.closest('[data-profile]');
-      if (!btn) return;
-      setActiveProfile(btn.getAttribute('data-profile'));
-    });
-  }
-
-  function setupInfoModal() {
-    el.infoBtn.addEventListener('click', function () {
-      el.infoModal.classList.remove('hidden');
-      el.infoModal.classList.add('flex');
-    });
-    el.infoClose.addEventListener('click', closeModal);
-    el.infoModal.addEventListener('click', function (e) {
-      if (e.target === el.infoModal) closeModal();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeModal();
-    });
-    function closeModal() {
-      el.infoModal.classList.add('hidden');
-      el.infoModal.classList.remove('flex');
-    }
-  }
-
-  /* =========================================================
-     INIT
-  ========================================================= */
-  document.addEventListener('DOMContentLoaded', function () {
-    cacheEls();
-    renderWaypointList();
-    setupWaypointListClicks();
-    buildProfileButtons();
-    setupProfileClicks();
-    setupRouteBuilderControls();
-    setupWindControls();
-    setupInfoModal();
-    setupCostCalculator();
-    loadAirportData();
-  });
-
-})();
-</script>
-
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('service-worker.js').catch(function (err) {
-        console.warn('[AERONAV·FPX] Service worker registration failed (app still works normally):', err);
-      });
-    });
-  }
-</script>
-</body>
-</html>
+          '<p class="text-[11px] tex
